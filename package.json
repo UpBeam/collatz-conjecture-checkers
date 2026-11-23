@@ -1,0 +1,11 @@
+{
+  "name": "collatz-conjecture-checkers",
+  "version": "1.0.0",
+  "description": "Sam Palmer's Collatz Conjecture Checkers — tactile arcade strategy game for web, itch.io, and mobile",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "dev": "npx --yes serve -l 4173 .",
+    "pack:itch": "mkdir -p dist && zip -r dist/collatz-checkers-itch.zip index.html manifest.json styles src -x '*.DS_Store'"
+  }
+}

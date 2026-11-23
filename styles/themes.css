@@ -1,0 +1,130 @@
+/* ==========================================================================
+   Collatz Conjecture Checkers — Restrained, Intentional Theme Tokens
+   Zero atmospheric radial gradients, zero neon fog, zero raw beige washes.
+   1. arcade  (Default, Free)  — Obsidian & Slate
+   2. wood    ($0.99 Pack)     — Walnut & Ivory
+   3. paper   ($0.99 Pack)     — Drafting Paper & Ink (Light)
+   ========================================================================== */
+
+:root,
+[data-theme="arcade"] {
+  --bg-page: #111318;
+  --bg-surface: #181b22;
+  --bg-surface-hover: #20242e;
+  --bg-elevated: #1c2029;
+
+  --rule: #282d39;
+  --rule-strong: #3b4254;
+
+  --ink: #eceef2;
+  --ink-2: #9ba1b0;
+  --ink-3: #686f80;
+
+  --board-frame: #161920;
+  --cell-light: #242936;
+  --cell-dark: #191d27;
+  --cell-line: rgba(236, 238, 242, 0.08);
+  --cell-spawn: #d9a036;
+
+  /* Player 1: Vermilion */
+  --p1-main: #e5484d;
+  --p1-grad: radial-gradient(circle at 34% 28%, #f57a7e 0%, #e5484d 52%, #a6262b 100%);
+  --p1-rim: rgba(255, 220, 222, 0.45);
+
+  /* Player 2: Glacier Blue */
+  --p2-main: #3b9eff;
+  --p2-grad: radial-gradient(circle at 34% 28%, #8cc8ff 0%, #3b9eff 52%, #1964b0 100%);
+  --p2-rim: rgba(220, 240, 255, 0.5);
+
+  /* Single restrained accent spent only on signal */
+  --accent: #d9a036;
+  --accent-ink: #111318;
+
+  --shadow-e1: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --shadow-e2: 0 1px 2px rgba(0, 0, 0, 0.32), 0 6px 14px -4px rgba(0, 0, 0, 0.36);
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --r-outer: 12px;
+  --r-mid: 8px;
+  --r-sm: 5px;
+  --r-cell: 3px;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ==========================================================================
+   Theme 2: Walnut & Ivory ($0.99 Lifetime Theme Pack)
+   ========================================================================== */
+[data-theme="wood"] {
+  --bg-page: #181412;
+  --bg-surface: #211c19;
+  --bg-surface-hover: #2a2420;
+  --bg-elevated: #26201c;
+
+  --rule: #382f29;
+  --rule-strong: #54453a;
+
+  --ink: #f1ece6;
+  --ink-2: #ada296;
+  --ink-3: #7c7166;
+
+  --board-frame: #2c221b;
+  --cell-light: #c8b294;
+  --cell-dark: #63432c;
+  --cell-line: rgba(241, 236, 230, 0.22);
+  --cell-spawn: #c79a4b;
+
+  /* Player 1: Lacquer Crimson */
+  --p1-main: #b8322a;
+  --p1-grad: radial-gradient(circle at 34% 28%, #df665f 0%, #b8322a 52%, #6d1914 100%);
+  --p1-rim: rgba(255, 224, 215, 0.45);
+
+  /* Player 2: Satin Ivory */
+  --p2-main: #e8e0d2;
+  --p2-grad: radial-gradient(circle at 34% 28%, #ffffff 0%, #e8e0d2 55%, #b3a792 100%);
+  --p2-rim: rgba(255, 255, 255, 0.7);
+
+  --accent: #c79a4b;
+  --accent-ink: #181412;
+}
+
+/* ==========================================================================
+   Theme 3: Drafting Paper & Ink ($0.99 Lifetime Theme Pack — Light Mode)
+   ========================================================================== */
+[data-theme="paper"] {
+  --bg-page: #f5f6fa;
+  --bg-surface: #ffffff;
+  --bg-surface-hover: #eceef5;
+  --bg-elevated: #ffffff;
+
+  --rule: #dfe2ec;
+  --rule-strong: #c2c7d6;
+
+  --ink: #14161c;
+  --ink-2: #555966;
+  --ink-3: #838899;
+
+  --board-frame: #e8ebf3;
+  --cell-light: #ffffff;
+  --cell-dark: #e2e6f0;
+  --cell-line: rgba(36, 106, 80, 0.14);
+  --cell-spawn: #246a50;
+
+  /* Player 1: Drafting Vermilion */
+  --p1-main: #d63842;
+  --p1-grad: radial-gradient(circle at 34% 28%, #f06e76 0%, #d63842 54%, #9c1f27 100%);
+  --p1-rim: rgba(255, 235, 236, 0.6);
+
+  /* Player 2: Deep Pine Ink */
+  --p2-main: #246a50;
+  --p2-grad: radial-gradient(circle at 34% 28%, #4da182 0%, #246a50 54%, #144030 100%);
+  --p2-rim: rgba(220, 245, 235, 0.55);
+
+  --accent: #246a50;
+  --accent-ink: #ffffff;
+
+  --shadow-e1: 0 1px 2px rgba(20, 22, 28, 0.06);
+  --shadow-e2: 0 1px 2px rgba(20, 22, 28, 0.07), 0 6px 14px -4px rgba(20, 22, 28, 0.09);
+}

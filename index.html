@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="arcade">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#111318" />
+  <meta name="description" content="Collatz Conjecture Checkers — original game by Sam Palmer." />
+  <title>Collatz Conjecture Checkers</title>
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="stylesheet" href="./styles/themes.css" />
+  <link rel="stylesheet" href="./styles/main.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Minimal Top Bar: Compact Scoreboard + Icon Toolbar -->
+    <header class="top-bar">
+      <div class="scoreboard" aria-label="Score">
+        <div id="pill-p1" class="score-side active-turn" data-tip="Player 1" data-tip-align="left">
+          <span class="score-dot p1"></span>
+          <span id="p1-count" class="score-val">12</span>
+        </div>
+        <span id="turn-badge" class="score-turn" data-tip="Turn">1</span>
+        <div id="pill-p2" class="score-side" data-tip="AI · Medium">
+          <span id="p2-count" class="score-val">12</span>
+          <span class="score-dot p2"></span>
+        </div>
+      </div>
+
+      <div class="icon-group">
+        <button id="btn-tutorial" class="icon-btn" data-tip="How to play" aria-label="How to play"></button>
+        <button id="btn-history" class="icon-btn" data-tip="Move history" aria-label="Move history"></button>
+        <button id="btn-themes" class="icon-btn" data-tip="Themes" aria-label="Themes"></button>
+        <button id="btn-settings" class="icon-btn" data-tip="Settings &amp; Credits" data-tip-align="right" aria-label="Settings and Credits"></button>
+      </div>
+    </header>
+
+    <!-- Board Stage -->
+    <main class="board-stage">
+      <div id="board-frame" class="board-frame">
+        <div id="board-grid" class="board-grid" role="grid" aria-label="8 by 8 Collatz Checkers Board"></div>
+        <canvas id="fx-canvas" class="fx-canvas"></canvas>
+        <div id="dir-wheel" class="dir-wheel hidden" role="group" aria-label="Direction"></div>
+      </div>
+    </main>
+
+    <!-- Silent Aim Telemetry (only fades in while aiming a move) -->
+    <div id="telemetry-bar" class="telemetry-bar" aria-live="polite"></div>
+
+    <!-- Icon-Only Bottom Dock -->
+    <footer class="bottom-dock">
+      <div class="icon-group">
+        <button id="btn-undo" class="icon-btn" disabled data-tip="Undo" data-tip-pos="top" data-tip-align="left" aria-label="Undo"></button>
+        <button id="btn-redo" class="icon-btn" disabled data-tip="Redo" data-tip-pos="top" aria-label="Redo"></button>
+      </div>
+
+      <div class="icon-group">
+        <button id="btn-mode" class="icon-btn" data-tip="Opponent: AI Medium" data-tip-pos="top" aria-label="Change opponent"></button>
+        <button id="btn-sound" class="icon-btn" data-tip="Sound on" data-tip-pos="top" aria-label="Toggle sound"></button>
+        <button id="btn-new" class="icon-btn accent" data-tip="New match" data-tip-pos="top" data-tip-align="right" aria-label="New match"></button>
+      </div>
+    </footer>
+
+    <!-- Gentle Mobile Sponsor Banner (mobile only, removed forever when Theme Pack unlocked) -->
+    <aside id="ad-banner-slot" class="ad-banner-slot hidden" aria-label="Sponsor">
+      <span>Sponsor</span>
+      <button id="btn-remove-ads" class="ad-remove-link">Ad-free + Themes ($0.99)</button>
+    </aside>
+  </div>
+
+  <!-- Compact Playable Tutorial Bar -->
+  <div id="tutorial-banner" class="tutorial-banner hidden">
+    <div class="tutorial-head">
+      <h3 id="tutorial-title">Replicate &amp; Hop</h3>
+      <span id="tutorial-step-tag" class="tutorial-step-num">1 / 4</span>
+    </div>
+    <p id="tutorial-body"></p>
+    <div class="tutorial-footer">
+      <button id="btn-tutorial-skip" class="btn">Exit</button>
+      <button id="btn-tutorial-next" class="btn primary">Next</button>
+    </div>
+  </div>
+
+  <!-- Settings & Credits Modal (Sam Palmer credited here) -->
+  <div id="modal-settings" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Settings &amp; Credits</h2>
+        <button class="icon-btn" data-close-modal="modal-settings" aria-label="Close"></button>
+      </div>
+
+      <div class="settings-section">
+        <p class="settings-label">Opponent</p>
+        <div class="segmented" id="mode-segmented">
+          <button class="seg-btn" data-mode="pvp">2P</button>
+          <button class="seg-btn" data-mode="ai-easy">AI 1</button>
+          <button class="seg-btn active" data-mode="ai-medium">AI 2</button>
+          <button class="seg-btn" data-mode="ai-hard">AI 3</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <p class="settings-label">Preferences</p>
+        <div class="setting-row">
+          <span>Sound effects</span>
+          <button id="toggle-sound" class="toggle-btn" aria-pressed="true" aria-label="Sound effects"></button>
+        </div>
+        <div class="setting-row">
+          <span>Haptics</span>
+          <button id="toggle-haptics" class="toggle-btn" aria-pressed="true" aria-label="Haptics"></button>
+        </div>
+        <div class="setting-row">
+          <span>Fast animations</span>
+          <button id="toggle-fast" class="toggle-btn" aria-pressed="false" aria-label="Fast animations"></button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <p class="settings-label">Credits</p>
+        <div class="credits-block">
+          <strong>Collatz Conjecture Checkers</strong><br />
+          Original game design &amp; rules by <strong>Sam Palmer</strong>.<br />
+          Each line move mirrors a binary Collatz step: replicate along the line (3n), then hop the back piece forward with carries and edge reflections.
+          <div class="credits-meta">v1.0 · Tap any piece or drag to aim</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Visual Themes Modal ($0.99 Lifetime Theme Pack) -->
+  <div id="modal-themes" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Themes</h2>
+        <button class="icon-btn" data-close-modal="modal-themes" aria-label="Close"></button>
+      </div>
+      <div id="theme-list" class="theme-list"></div>
+      <div id="iap-box" class="iap-box">
+        <p><strong>Theme Pack + Ad-Free ($0.99)</strong><br />One-time unlock for Walnut &amp; Ivory, Drafting Paper &amp; Ink, and zero mobile ads.</p>
+        <div class="iap-actions">
+          <button id="btn-unlock-pack" class="btn primary" style="flex: 1;">Unlock — $0.99</button>
+          <button id="btn-restore-iap" class="btn">Restore</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- History & Replay Modal -->
+  <div id="modal-history" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>History</h2>
+        <button class="icon-btn" data-close-modal="modal-history" aria-label="Close"></button>
+      </div>
+      <div id="history-list" class="history-list"></div>
+      <div style="display: flex; justify-content: space-between; gap: 8px;">
+        <button id="btn-replay-play" class="btn primary" style="flex: 1;"></button>
+        <button class="btn" data-close-modal="modal-history">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Victory Modal -->
+  <div id="modal-victory" class="modal-backdrop hidden">
+    <div class="modal-card" style="text-align: center;">
+      <div id="victory-icon" class="victory-icon"></div>
+      <h2 id="victory-title" style="margin: 0 0 4px;">Player 1 Wins</h2>
+      <div class="victory-stats">
+        <div class="stat-box"><strong id="stat-turns">0</strong><span>Turns</span></div>
+        <div class="stat-box"><strong id="stat-captures">0</strong><span>Captures</span></div>
+        <div class="stat-box"><strong id="stat-bounces">0</strong><span>Bounces</span></div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button id="btn-victory-replay" class="btn" style="flex: 1;">Replay</button>
+        <button id="btn-victory-rematch" class="btn primary" style="flex: 1;">Play again</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
