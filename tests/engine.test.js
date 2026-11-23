@@ -5,18 +5,34 @@ import {
   createEmptyBoard,
   createInitialState,
   countPieces,
+  getBoardHash,
   stepWithBounce,
   executeMove,
   getLegalMoves,
 } from '../src/engine.js';
 
-test('initial board has 12 Red and 12 Black pieces on matching parity squares', () => {
+test('initial board defaults to Balanced (8 pieces each) and supports Classic (12 pieces each)', () => {
+  const balanced = createInitialState();
+  const bCounts = countPieces(balanced.board);
+  assert.equal(bCounts.p1, 8);
+  assert.equal(bCounts.p2, 8);
+  assert.equal(balanced.currentPlayer, 1);
+  assert.equal(balanced.winner, 0);
+
+  const classic = createInitialState(BOARD_SIZE, 3);
+  const cCounts = countPieces(classic.board);
+  assert.equal(cCounts.p1, 12);
+  assert.equal(cCounts.p2, 12);
+});
+
+test('Super-Ko filters out moves that repeat a previously seen board state', () => {
   const state = createInitialState();
-  const counts = countPieces(state.board);
-  assert.equal(counts.p1, 12);
-  assert.equal(counts.p2, 12);
-  assert.equal(state.currentPlayer, 1);
-  assert.equal(state.winner, 0);
+  const moves = getLegalMoves(state);
+  const first = moves[0];
+  const { nextState } = executeMove(state, first.x, first.y, first.dx, first.dy);
+  const seen = new Set([getBoardHash(nextState.board, nextState.currentPlayer)]);
+  const filtered = getLegalMoves(state, seen);
+  assert.equal(filtered.length, moves.length - 1, 'repeating move should be filtered out by Super-Ko');
 });
 
 test('Sam Option B: solo piece at right edge moving diagonally off-board reflects and lands 2 tiles from edge', () => {

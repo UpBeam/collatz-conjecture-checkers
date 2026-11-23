@@ -17,11 +17,11 @@
       <div class="scoreboard" aria-label="Score">
         <div id="pill-p1" class="score-side active-turn" data-tip="Player 1" data-tip-align="left">
           <span class="score-dot p1"></span>
-          <span id="p1-count" class="score-val">12</span>
+          <span id="p1-count" class="score-val">8</span>
         </div>
         <span id="turn-badge" class="score-turn" data-tip="Turn">1</span>
         <div id="pill-p2" class="score-side" data-tip="AI · Medium">
-          <span id="p2-count" class="score-val">12</span>
+          <span id="p2-count" class="score-val">8</span>
           <span class="score-dot p2"></span>
         </div>
       </div>
@@ -95,6 +95,14 @@
           <button class="seg-btn" data-mode="ai-easy">AI 1</button>
           <button class="seg-btn active" data-mode="ai-medium">AI 2</button>
           <button class="seg-btn" data-mode="ai-hard">AI 3</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <p class="settings-label">Setup</p>
+        <div class="segmented" id="setup-segmented" style="grid-template-columns: 1fr 1fr;">
+          <button class="seg-btn active" data-rows="2">Balanced (8)</button>
+          <button class="seg-btn" data-rows="3">Classic (12)</button>
         </div>
       </div>
 

@@ -8,6 +8,7 @@ import {
   countPieces,
   createInitialState,
   executeMove,
+  getBoardHash,
   isValidMove,
   previewMove,
 } from './engine.js';
@@ -43,8 +44,9 @@ class CollatzGameApp {
     this.sound.setTheme(this.monetization.currentTheme);
 
     this.mode = 'ai-medium';
+    this.startingRows = 2; // 2 = Balanced (8 pieces), 3 = Classic (12 pieces)
     this.fastMode = false;
-    this.history = new GameHistory(createInitialState());
+    this.history = new GameHistory(createInitialState(BOARD_SIZE, this.startingRows));
     this.isAnimating = false;
     this.isReplaying = false;
     this.matchStats = { captures: 0, bounces: 0 };
@@ -251,6 +253,18 @@ class CollatzGameApp {
         this.syncSettingsModal();
       });
     });
+    document.querySelectorAll('#setup-segmented .seg-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const rows = Number(btn.dataset.rows);
+        if (this.startingRows !== rows) {
+          this.startingRows = rows;
+          this.exitTutorial(false);
+          this.startNewMatch();
+          this.syncSettingsModal();
+          this.showToast(rows === 2 ? 'Balanced (8)' : 'Classic (12)');
+        }
+      });
+    });
     this.el.toggleSound.addEventListener('click', () => this.toggleSound());
     this.el.toggleHaptics.addEventListener('click', () => {
       this.sound.setHapticsEnabled(!this.sound.hapticsEnabled);
@@ -322,6 +336,9 @@ class CollatzGameApp {
   syncSettingsModal() {
     document.querySelectorAll('#mode-segmented .seg-btn').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.mode === this.mode);
+    });
+    document.querySelectorAll('#setup-segmented .seg-btn').forEach((btn) => {
+      btn.classList.toggle('active', Number(btn.dataset.rows) === this.startingRows);
     });
     this.syncSoundControls();
     this.el.toggleHaptics.setAttribute('aria-pressed', String(this.sound.hapticsEnabled));
@@ -505,6 +522,18 @@ class CollatzGameApp {
 
     const { nextState, events, summary } = executeMove(currentState, x, y, dx, dy);
 
+    // Super-Ko: block moves that repeat a previously seen board state
+    if (!this.tutorialActive) {
+      const seen = this.history.getSeenHashes();
+      const nextHash = getBoardHash(nextState.board, nextState.currentPlayer);
+      if (seen.has(nextHash)) {
+        this.isAnimating = false;
+        this.sound.playAimTick();
+        this.showToast('Repeat blocked (Ko)');
+        return;
+      }
+    }
+
     await this.playMoveEvents(events, this.speedScale);
 
     this.history.push(nextState, { x, y, dx, dy }, summary, events);
@@ -595,9 +624,13 @@ class CollatzGameApp {
     if (this.isAnimating || !this.isAITurn()) return;
 
     const diff = this.mode.replace('ai-', '');
-    const move = chooseAIMove(this.state, diff);
+    const seen = this.history.getSeenHashes();
+    const move = chooseAIMove(this.state, diff, seen);
     if (move) {
       await this.commitMove(move.x, move.y, move.dx, move.dy);
+    } else {
+      // No legal non-repeating move -> active player loses by Super-Ko
+      this.handleVictory(1);
     }
   }
 
@@ -679,7 +712,7 @@ class CollatzGameApp {
   startNewMatch() {
     this.isReplaying = false;
     this.clearSelection();
-    this.history.reset(createInitialState());
+    this.history.reset(createInitialState(BOARD_SIZE, this.startingRows));
     this.matchStats = { captures: 0, bounces: 0 };
     this.sound.playSelect();
     this.syncUI();
@@ -709,7 +742,8 @@ class CollatzGameApp {
       const btn = document.createElement('button');
       btn.className = `history-row${idx === this.history.cursor ? ' active' : ''}`;
       if (idx === 0) {
-        btn.innerHTML = `<span>0 · Start</span><span>12 – 12</span>`;
+        const initCount = this.startingRows * 4;
+        btn.innerHTML = `<span>0 · Start</span><span>${initCount} – ${initCount}</span>`;
       } else {
         const s = entry.summary;
         const dot = `<span class="history-dot p${s.player}"></span>`;

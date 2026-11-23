@@ -1,8 +1,9 @@
 /**
  * Collatz Conjecture Checkers — AI Opponent (Easy / Medium / Hard)
+ * Super-Ko aware: avoids repeating previously seen board states.
  */
 
-import { countPieces, executeMove, getLegalMoves } from './engine.js';
+import { countPieces, executeMove, getBoardHash, getLegalMoves } from './engine.js';
 
 function evaluateState(state, aiPlayer) {
   if (state.winner === aiPlayer) return 100000;
@@ -13,7 +14,6 @@ function evaluateState(state, aiPlayer) {
   const myPieces = aiPlayer === 1 ? p1 : p2;
   const oppPieces = aiPlayer === 1 ? p2 : p1;
 
-  // Center control & shared-tile pressure
   const pIdx = aiPlayer - 1;
   const oppIdx = 1 - pIdx;
   let positional = 0;
@@ -34,7 +34,6 @@ function evaluateState(state, aiPlayer) {
     }
   }
 
-  // Piece advantage is king, with strong incentive to push opponent toward 0
   const eliminationPressure = oppPieces <= 3 ? (4 - oppPieces) * 18 : 0;
   return (myPieces - oppPieces) * 24 + positional + sharedBonus + eliminationPressure;
 }
@@ -42,38 +41,39 @@ function evaluateState(state, aiPlayer) {
 /**
  * Chooses a move for `state.currentPlayer` given difficulty: 'easy' | 'medium' | 'hard'.
  */
-export function chooseAIMove(state, difficulty = 'medium') {
+export function chooseAIMove(state, difficulty = 'medium', seenHashes = null) {
   const moves = getLegalMoves(state);
   if (moves.length === 0) return null;
 
   const aiPlayer = state.currentPlayer;
+  const scored = [];
 
-  // Score all immediate 1-ply outcomes
-  const scored = moves.map((move) => {
+  for (const move of moves) {
     const { nextState, summary } = executeMove(state, move.x, move.y, move.dx, move.dy);
+    const hash = getBoardHash(nextState.board, nextState.currentPlayer);
+    if (seenHashes && seenHashes.has(hash)) continue;
+
     const immediateScore =
       evaluateState(nextState, aiPlayer) +
       summary.opponentCaptures * 12 +
       summary.bounces * 1.5;
-    return { move, nextState, summary, score: immediateScore };
-  });
+    scored.push({ move, nextState, summary, hash, score: immediateScore });
+  }
 
+  if (scored.length === 0) return null;
   scored.sort((a, b) => b.score - a.score);
 
-  // Instant win check
   if (scored[0].nextState.winner === aiPlayer) {
     return scored[0].move;
   }
 
   if (difficulty === 'easy') {
-    // Pick from top 60% of moves with mild preference for fun/active moves
     const poolSize = Math.max(2, Math.ceil(scored.length * 0.6));
-    const idx = Math.floor(Math.random() * poolSize);
+    const idx = Math.floor(Math.random() * Math.min(poolSize, scored.length));
     return scored[idx].move;
   }
 
   if (difficulty === 'medium') {
-    // Pick among top 3 moves within a small score band for natural variety
     const best = scored[0].score;
     const nearBest = scored.filter((s) => s.score >= best - 8).slice(0, 3);
     return nearBest[Math.floor(Math.random() * nearBest.length)].move;
@@ -84,17 +84,14 @@ export function chooseAIMove(state, difficulty = 'medium') {
   let bestMove = candidates[0].move;
   let bestVal = -Infinity;
   let alpha = -Infinity;
-  const beta = Infinity;
 
   for (const cand of candidates) {
     const oppMoves = getLegalMoves(cand.nextState);
-    if (oppMoves.length === 0) {
-      return cand.move;
-    }
+    if (oppMoves.length === 0) return cand.move;
 
-    // Opponent minimizes AI score
     let worstForAI = Infinity;
-    // Evaluate opponent's best replies (order by opponent captures/piece delta)
+    let legalReplies = 0;
+
     for (const oppMove of oppMoves) {
       const { nextState: afterOpp } = executeMove(
         cand.nextState,
@@ -103,25 +100,29 @@ export function chooseAIMove(state, difficulty = 'medium') {
         oppMove.dx,
         oppMove.dy
       );
+      if (seenHashes) {
+        const oppHash = getBoardHash(afterOpp.board, afterOpp.currentPlayer);
+        if (seenHashes.has(oppHash) || oppHash === cand.hash) continue;
+      }
+      legalReplies++;
+
       const val = evaluateState(afterOpp, aiPlayer);
-      if (val < worstForAI) {
-        worstForAI = val;
-      }
-      if (worstForAI <= alpha) {
-        break; // Beta cutoff
-      }
+      if (val < worstForAI) worstForAI = val;
+      if (worstForAI <= alpha) break;
     }
 
-    // Slight tie-breaker favoring immediate captures & flashy bounces
-    const finalScore = worstForAI + cand.summary.opponentCaptures * 0.8 + cand.summary.bounces * 0.2;
+    if (legalReplies === 0) return cand.move; // Opponent trapped by Super-Ko
+
+    const finalScore =
+      worstForAI +
+      cand.summary.opponentCaptures * 0.8 +
+      cand.summary.bounces * 0.2 +
+      Math.random() * 0.4;
     if (finalScore > bestVal) {
       bestVal = finalScore;
       bestMove = cand.move;
     }
-    if (bestVal > alpha) {
-      alpha = bestVal;
-    }
-    if (alpha >= beta) break;
+    if (bestVal > alpha) alpha = bestVal;
   }
 
   return bestMove;

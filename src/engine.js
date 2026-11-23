@@ -35,15 +35,15 @@ export function createEmptyBoard(size = BOARD_SIZE) {
   return board;
 }
 
-export function createInitialBoard(size = BOARD_SIZE) {
+export function createInitialBoard(size = BOARD_SIZE, startingRows = 2) {
   const board = createEmptyBoard(size);
-  for (let rowOffset = 0; rowOffset < 3; rowOffset++) {
+  for (let rowOffset = 0; rowOffset < startingRows; rowOffset++) {
     for (let x = 0; x < size; x++) {
-      // Player 2 (top 3 rows: y = 0, 1, 2)
+      // Player 2 (top rows)
       if ((rowOffset + x) % 2 === 0) {
         board[x][rowOffset] = [0, 1];
       }
-      // Player 1 (bottom 3 rows: y = 7, 6, 5)
+      // Player 1 (bottom rows)
       if ((rowOffset + x + 1) % 2 === 0) {
         board[x][size - rowOffset - 1] = [1, 0];
       }
@@ -56,14 +56,25 @@ export function cloneBoard(board) {
   return board.map((col) => col.map((cell) => [cell[0], cell[1]]));
 }
 
-export function createInitialState(size = BOARD_SIZE) {
+export function createInitialState(size = BOARD_SIZE, startingRows = 2) {
   return {
     size,
-    board: createInitialBoard(size),
+    startingRows,
+    board: createInitialBoard(size, startingRows),
     currentPlayer: 1,
     turnNumber: 1,
     winner: 0,
   };
+}
+
+export function getBoardHash(board, currentPlayer) {
+  let out = `${currentPlayer}:`;
+  for (let x = 0; x < board.length; x++) {
+    for (let y = 0; y < board[x].length; y++) {
+      out += `${board[x][y][0]}${board[x][y][1]}`;
+    }
+  }
+  return out;
 }
 
 export function countPieces(board) {
@@ -454,7 +465,7 @@ export function previewMove(state, x, y, dx, dy) {
 /**
  * Returns all unique legal moves for the current player (deduplicated by line + direction).
  */
-export function getLegalMoves(state) {
+export function getLegalMoves(state, seenHashes = null) {
   if (state.winner !== 0) return [];
   const pIdx = state.currentPlayer - 1;
   const seen = new Set();
@@ -467,6 +478,12 @@ export function getLegalMoves(state) {
           const key = getLineMoveKey(x, y, dir.dx, dir.dy, state.size);
           if (!seen.has(key)) {
             seen.add(key);
+            if (seenHashes) {
+              const { nextState } = executeMove(state, x, y, dir.dx, dir.dy);
+              if (seenHashes.has(getBoardHash(nextState.board, nextState.currentPlayer))) {
+                continue;
+              }
+            }
             moves.push({ x, y, dx: dir.dx, dy: dir.dy, dirId: dir.id });
           }
         }

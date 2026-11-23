@@ -2,11 +2,12 @@
  * Move History, Undo/Redo, and Replay Manager
  */
 
-import { cloneBoard } from './engine.js';
+import { cloneBoard, getBoardHash } from './engine.js';
 
 function cloneState(state) {
   return {
     size: state.size,
+    startingRows: state.startingRows,
     board: cloneBoard(state.board),
     currentPlayer: state.currentPlayer,
     turnNumber: state.turnNumber,
@@ -87,5 +88,14 @@ export class GameHistory {
     const clamped = Math.max(0, Math.min(this.entries.length - 1, index));
     this.cursor = clamped;
     return this.entries[this.cursor];
+  }
+
+  getSeenHashes() {
+    const set = new Set();
+    for (let i = 0; i <= this.cursor; i++) {
+      const st = this.entries[i].state;
+      set.add(getBoardHash(st.board, st.currentPlayer));
+    }
+    return set;
   }
 }
