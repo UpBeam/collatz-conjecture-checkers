@@ -27,6 +27,7 @@
       </div>
 
       <div class="icon-group">
+        <button id="btn-daily" class="icon-btn" data-tip="Daily puzzle" aria-label="Daily puzzle"></button>
         <button id="btn-collatz" class="icon-btn" data-tip="Why Collatz?" aria-label="Why Collatz Conjecture?"></button>
         <button id="btn-tutorial" class="icon-btn" data-tip="How to play" aria-label="How to play"></button>
         <button id="btn-history" class="icon-btn" data-tip="Move history" aria-label="Move history"></button>
@@ -78,6 +79,19 @@
     <div class="tutorial-footer">
       <button id="btn-tutorial-skip" class="btn">Exit</button>
       <button id="btn-tutorial-next" class="btn primary">Next</button>
+    </div>
+  </div>
+
+  <!-- Daily Collatz Puzzle Bar -->
+  <div id="daily-banner" class="tutorial-banner hidden">
+    <div class="tutorial-head">
+      <h3 id="daily-title">Daily #1</h3>
+      <span id="daily-meta" class="tutorial-step-num">1-move wipeout</span>
+    </div>
+    <p id="daily-body">Eliminate every blue piece in a single move.</p>
+    <div class="tutorial-footer">
+      <button id="btn-daily-exit" class="btn">Exit</button>
+      <button id="btn-daily-action" class="btn primary">Hint</button>
     </div>
   </div>
 
@@ -175,6 +189,7 @@
       <div id="history-list" class="history-list"></div>
       <div style="display: flex; justify-content: space-between; gap: 8px;">
         <button id="btn-replay-play" class="btn primary" style="flex: 1;"></button>
+        <button id="btn-share-replay" class="btn"></button>
         <button class="btn" data-close-modal="modal-history">Done</button>
       </div>
     </div>
@@ -191,8 +206,9 @@
         <div class="stat-box"><strong id="stat-bounces">0</strong><span>Bounces</span></div>
       </div>
       <div style="display: flex; gap: 8px;">
-        <button id="btn-victory-replay" class="btn" style="flex: 1;">Replay</button>
-        <button id="btn-victory-rematch" class="btn primary" style="flex: 1;">Play again</button>
+        <button id="btn-victory-share" class="btn" style="flex: 1;"></button>
+        <button id="btn-victory-replay" class="btn">Replay</button>
+        <button id="btn-victory-rematch" class="btn primary" style="flex: 1;">Again</button>
       </div>
     </div>
   </div>

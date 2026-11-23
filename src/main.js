@@ -20,6 +20,13 @@ import { MonetizationManager, THEMES } from './monetization.js';
 import { TUTORIAL_STEPS } from './tutorial.js';
 import { ICONS } from './icons.js';
 import { CollatzExplainer } from './collatz_explainer.js';
+import {
+  buildDailyShareText,
+  buildReplayUrl,
+  buildVictoryShareText,
+  decodeReplay,
+} from './share.js';
+import { generateDailyPuzzle } from './daily.js';
 
 const DIR_ARROWS = {
   n: '↑', ne: '↗', e: '→', se: '↘',
@@ -57,7 +64,7 @@ class CollatzGameApp {
     this.history = new GameHistory(createInitialState(initCfg.size, initCfg.rows));
     this.isAnimating = false;
     this.isReplaying = false;
-    this.matchStats = { captures: 0, bounces: 0 };
+    this.matchStats = { captures: 0, bounces: 0, maxHop: 0 };
 
     this.selectedCell = null;
     this.dragState = null;
@@ -65,6 +72,12 @@ class CollatzGameApp {
 
     this.tutorialActive = false;
     this.tutorialIndex = 0;
+
+    this.dailyActive = false;
+    this.dailyPuzzle = null;
+    this.dailyAttempts = 0;
+    this.dailySolved = false;
+    this.dailySolveSummary = null;
 
     this.el = {
       boardFrame: document.getElementById('board-frame'),
@@ -84,6 +97,7 @@ class CollatzGameApp {
       btnSound: document.getElementById('btn-sound'),
       btnThemes: document.getElementById('btn-themes'),
       btnHistory: document.getElementById('btn-history'),
+      btnDaily: document.getElementById('btn-daily'),
       btnCollatz: document.getElementById('btn-collatz'),
       btnTutorial: document.getElementById('btn-tutorial'),
       btnSettings: document.getElementById('btn-settings'),
@@ -99,7 +113,16 @@ class CollatzGameApp {
       iapBox: document.getElementById('iap-box'),
       historyList: document.getElementById('history-list'),
       btnReplayPlay: document.getElementById('btn-replay-play'),
+      btnShareReplay: document.getElementById('btn-share-replay'),
+      btnVictoryShare: document.getElementById('btn-victory-share'),
       victoryIcon: document.getElementById('victory-icon'),
+      // Daily Puzzle
+      dailyBanner: document.getElementById('daily-banner'),
+      dailyTitle: document.getElementById('daily-title'),
+      dailyMeta: document.getElementById('daily-meta'),
+      dailyBody: document.getElementById('daily-body'),
+      btnDailyExit: document.getElementById('btn-daily-exit'),
+      btnDailyAction: document.getElementById('btn-daily-action'),
       // Tutorial
       tutBanner: document.getElementById('tutorial-banner'),
       tutTag: document.getElementById('tutorial-step-tag'),
@@ -123,6 +146,7 @@ class CollatzGameApp {
     this.updateAdSlot();
     this.renderThemesModal();
     this.syncUI();
+    this.handleUrlHash();
   }
 
   get state() {
@@ -134,10 +158,17 @@ class CollatzGameApp {
   }
 
   isAITurn(st = this.state) {
-    return !this.tutorialActive && this.mode.startsWith('ai-') && st.currentPlayer === 2 && st.winner === 0;
+    return (
+      !this.tutorialActive &&
+      !this.dailyActive &&
+      this.mode.startsWith('ai-') &&
+      st.currentPlayer === 2 &&
+      st.winner === 0
+    );
   }
 
   injectIcons() {
+    this.el.btnDaily.innerHTML = ICONS.daily;
     this.el.btnCollatz.innerHTML = ICONS.collatz;
     this.el.btnTutorial.innerHTML = ICONS.help;
     this.el.btnHistory.innerHTML = ICONS.history;
@@ -147,6 +178,8 @@ class CollatzGameApp {
     this.el.btnRedo.innerHTML = ICONS.redo;
     this.el.btnNew.innerHTML = ICONS.restart;
     this.el.btnReplayPlay.innerHTML = `${ICONS.play}<span>Replay</span>`;
+    this.el.btnShareReplay.innerHTML = `${ICONS.share}<span>Share</span>`;
+    this.el.btnVictoryShare.innerHTML = `${ICONS.share}<span>Share</span>`;
     this.el.victoryIcon.innerHTML = ICONS.trophy;
 
     document.querySelectorAll('[data-close-modal]').forEach((btn) => {
@@ -238,6 +271,7 @@ class CollatzGameApp {
       this.renderHistoryModal();
       this.openModal('modal-history');
     });
+    this.el.btnDaily.addEventListener('click', () => this.startDailyPuzzle());
     this.el.btnCollatz.addEventListener('click', () => {
       this.sound.playSelect();
       this.openModal('modal-collatz');
@@ -320,6 +354,8 @@ class CollatzGameApp {
       this.closeModal('modal-history');
       this.playFullReplay();
     });
+    this.el.btnShareReplay.addEventListener('click', () => this.shareCurrentReplay());
+    this.el.btnVictoryShare.addEventListener('click', () => this.shareVictoryCard());
     document.getElementById('btn-victory-rematch').addEventListener('click', () => {
       this.closeModal('modal-victory');
       this.startNewMatch();
@@ -327,6 +363,21 @@ class CollatzGameApp {
     document.getElementById('btn-victory-replay').addEventListener('click', () => {
       this.closeModal('modal-victory');
       this.playFullReplay();
+    });
+
+    // Daily Puzzle
+    this.el.btnDailyExit.addEventListener('click', () => this.exitDailyPuzzle(true));
+    this.el.btnDailyAction.addEventListener('click', () => {
+      if (this.dailySolved) {
+        this.shareDailyResult();
+      } else if (this.dailyPuzzle) {
+        // Show subtle hint: highlight the piece to move
+        const sol = this.dailyPuzzle.solution;
+        this.clearSelection();
+        this.cellEls[sol.x][sol.y].classList.add('selected');
+        this.sound.playSelect();
+        this.showToast('Hint: move the highlighted piece');
+      }
     });
 
     // Tutorial
@@ -548,7 +599,7 @@ class CollatzGameApp {
     const { nextState, events, summary } = executeMove(currentState, x, y, dx, dy);
 
     // Super-Ko: block moves that repeat a previously seen board state
-    if (!this.tutorialActive) {
+    if (!this.tutorialActive && !this.dailyActive) {
       const seen = this.history.getSeenHashes();
       const nextHash = getBoardHash(nextState.board, nextState.currentPlayer);
       if (seen.has(nextHash)) {
@@ -564,9 +615,17 @@ class CollatzGameApp {
     this.history.push(nextState, { x, y, dx, dy }, summary, events);
     this.matchStats.captures += summary.opponentCaptures;
     this.matchStats.bounces += summary.bounces;
+    if (summary.hops > this.matchStats.maxHop) {
+      this.matchStats.maxHop = summary.hops;
+    }
 
     this.isAnimating = false;
     this.syncUI();
+
+    if (this.dailyActive) {
+      await this.handleDailyMoveResult(nextState, summary);
+      return;
+    }
 
     if (this.tutorialActive) {
       this.el.btnTutNext.textContent =
@@ -732,19 +791,23 @@ class CollatzGameApp {
 
     this.syncSoundControls();
 
-    this.el.btnUndo.disabled = this.isAnimating || this.tutorialActive || !this.history.canUndo();
-    this.el.btnRedo.disabled = this.isAnimating || this.tutorialActive || !this.history.canRedo();
+    this.el.btnUndo.disabled = this.isAnimating || this.tutorialActive || this.dailyActive || !this.history.canUndo();
+    this.el.btnRedo.disabled = this.isAnimating || this.tutorialActive || this.dailyActive || !this.history.canRedo();
   }
 
   /* ---------------- Undo / Redo / Replay / New Match ---------------- */
 
   startNewMatch() {
     this.isReplaying = false;
+    this.exitDailyPuzzle(false);
     this.clearSelection();
     const cfg = BOARD_SETUPS[this.setupId];
     this.history.reset(createInitialState(cfg.size, cfg.rows));
     this.buildBoardDOM(cfg.size);
-    this.matchStats = { captures: 0, bounces: 0 };
+    this.matchStats = { captures: 0, bounces: 0, maxHop: 0 };
+    if (window.location.hash) {
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
     this.sound.playSelect();
     this.syncUI();
   }
@@ -872,9 +935,146 @@ class CollatzGameApp {
     this.el.adBanner.classList.toggle('hidden', !show);
   }
 
+  /* ---------------- Shareable Replays & Daily Puzzle ---------------- */
+
+  async copyText(text, successMsg = 'Copied to clipboard') {
+    try {
+      await navigator.clipboard.writeText(text);
+      this.showToast(successMsg);
+      this.sound.playSelect();
+    } catch {
+      window.prompt('Copy to share:', text);
+    }
+  }
+
+  getRecordedMoves() {
+    return this.history.entries.slice(1).map((e) => e.move).filter(Boolean);
+  }
+
+  shareCurrentReplay() {
+    const moves = this.getRecordedMoves();
+    if (moves.length === 0) {
+      this.showToast('Play at least one move first');
+      return;
+    }
+    const url = buildReplayUrl(this.setupId, moves);
+    this.copyText(url, 'Replay link copied');
+  }
+
+  shareVictoryCard() {
+    const moves = this.getRecordedMoves();
+    const replayUrl = buildReplayUrl(this.setupId, moves);
+    const text = buildVictoryShareText({
+      winner: this.state.winner,
+      modeLabel: MODE_META[this.mode].label,
+      setupLabel: BOARD_SETUPS[this.setupId].label,
+      turns: this.history.moveCount,
+      captures: this.matchStats.captures,
+      bounces: this.matchStats.bounces,
+      maxHop: this.matchStats.maxHop,
+      replayUrl,
+    });
+    this.copyText(text, 'Result & replay copied');
+  }
+
+  handleUrlHash() {
+    const hash = window.location.hash || '';
+    if (hash === '#daily') {
+      this.startDailyPuzzle();
+      return;
+    }
+    if (hash.startsWith('#r=')) {
+      const decoded = decodeReplay(hash.slice(3));
+      if (!decoded || decoded.moves.length === 0) return;
+
+      this.setupId = decoded.setupId;
+      const cfg = BOARD_SETUPS[this.setupId];
+      let st = createInitialState(cfg.size, cfg.rows);
+      this.history.reset(st);
+      this.buildBoardDOM(cfg.size);
+
+      for (const m of decoded.moves) {
+        if (!isValidMove(st, m.x, m.y, m.dx, m.dy)) break;
+        const { nextState, events, summary } = executeMove(st, m.x, m.y, m.dx, m.dy);
+        this.history.push(nextState, m, summary, events);
+        st = nextState;
+      }
+
+      this.syncUI();
+      this.showToast('Shared replay');
+      setTimeout(() => this.playFullReplay(), 350);
+    }
+  }
+
+  startDailyPuzzle() {
+    this.exitTutorial(false);
+    this.dailyPuzzle = generateDailyPuzzle();
+    this.dailyActive = true;
+    this.dailyAttempts = 0;
+    this.dailySolved = false;
+    this.dailySolveSummary = null;
+
+    this.history.reset(this.dailyPuzzle.state);
+    this.buildBoardDOM(this.dailyPuzzle.state.size);
+    this.el.dailyTitle.textContent = `Daily #${this.dailyPuzzle.dayNumber}`;
+    this.el.dailyMeta.textContent = '1-move wipeout';
+    this.el.dailyBody.textContent = 'Eliminate every blue piece in a single move.';
+    this.el.btnDailyAction.textContent = 'Hint';
+    this.el.dailyBanner.classList.remove('hidden');
+    this.syncUI();
+    this.sound.playSelect();
+  }
+
+  async handleDailyMoveResult(nextState, summary) {
+    this.dailyAttempts += 1;
+    if (nextState.winner === 1) {
+      this.dailySolved = true;
+      this.dailySolveSummary = summary;
+      this.sound.playVictory();
+      this.fx.spawnVictoryConfetti();
+      const tries = this.dailyAttempts === 1 ? '1 try' : `${this.dailyAttempts} tries`;
+      this.el.dailyMeta.textContent = `Solved · ${tries}`;
+      this.el.dailyBody.textContent = `${summary.hops}-hop · ${summary.bounces} bounce${summary.bounces === 1 ? '' : 's'} · ${summary.opponentCaptures} wiped.`;
+      this.el.btnDailyAction.innerHTML = `${ICONS.share}<span>Share</span>`;
+      return;
+    }
+
+    // Missed wipeout — reset puzzle cleanly after a short beat so player can retry immediately
+    this.el.dailyMeta.textContent = `Tries: ${this.dailyAttempts}`;
+    this.showToast('Not a full wipeout — try again');
+    await sleep(650);
+    if (!this.dailyActive || this.dailySolved) return;
+    this.history.reset(this.dailyPuzzle.state);
+    this.syncUI();
+  }
+
+  shareDailyResult() {
+    if (!this.dailyPuzzle || !this.dailySolveSummary) return;
+    const base = `${window.location.origin}${window.location.pathname}`;
+    const text = buildDailyShareText({
+      dayNumber: this.dailyPuzzle.dayNumber,
+      attempts: this.dailyAttempts,
+      hops: this.dailySolveSummary.hops,
+      bounces: this.dailySolveSummary.bounces,
+      captures: this.dailySolveSummary.opponentCaptures,
+      dailyUrl: `${base}#daily`,
+    });
+    this.copyText(text, 'Daily result copied');
+  }
+
+  exitDailyPuzzle(resetToMatch) {
+    if (!this.dailyActive) return;
+    this.dailyActive = false;
+    this.el.dailyBanner.classList.add('hidden');
+    if (resetToMatch) {
+      this.startNewMatch();
+    }
+  }
+
   /* ---------------- Interactive Tutorial ---------------- */
 
   startTutorial() {
+    this.exitDailyPuzzle(false);
     this.tutorialActive = true;
     this.tutorialIndex = 0;
     this.loadTutorialStep();
