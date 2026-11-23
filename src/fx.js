@@ -18,11 +18,16 @@ export class FXLayer {
     this.preview = null;
     this.activeHopper = null;
     this.size = 400;
+    this.boardSize = 8;
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
     this.loop = this.loop.bind(this);
     requestAnimationFrame(this.loop);
+  }
+
+  setBoardSize(n) {
+    this.boardSize = n;
   }
 
   resize() {
@@ -35,7 +40,7 @@ export class FXLayer {
   }
 
   cellCenter(gx, gy) {
-    const cellSize = this.size / 8;
+    const cellSize = this.size / this.boardSize;
     return {
       x: (gx + 0.5) * cellSize,
       y: (gy + 0.5) * cellSize,

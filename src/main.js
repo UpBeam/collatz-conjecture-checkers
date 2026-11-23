@@ -35,6 +35,12 @@ const MODE_META = {
 
 const MODE_ORDER = ['ai-easy', 'ai-medium', 'ai-hard', 'pvp'];
 
+const BOARD_SETUPS = {
+  balanced: { size: 8,  rows: 2, label: '8×8 · Balanced' },
+  classic:  { size: 8,  rows: 3, label: '8×8 · Classic' },
+  grand:    { size: 10, rows: 3, label: '10×10 · Grand' },
+};
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 class CollatzGameApp {
@@ -45,9 +51,10 @@ class CollatzGameApp {
     this.sound.setTheme(this.monetization.currentTheme);
 
     this.mode = 'ai-medium';
-    this.startingRows = 2; // 2 = Balanced (8 pieces), 3 = Classic (12 pieces)
+    this.setupId = 'balanced';
     this.fastMode = false;
-    this.history = new GameHistory(createInitialState(BOARD_SIZE, this.startingRows));
+    const initCfg = BOARD_SETUPS[this.setupId];
+    this.history = new GameHistory(createInitialState(initCfg.size, initCfg.rows));
     this.isAnimating = false;
     this.isReplaying = false;
     this.matchStats = { captures: 0, bounces: 0 };
@@ -151,12 +158,15 @@ class CollatzGameApp {
 
   /* ---------------- DOM Construction ---------------- */
 
-  buildBoardDOM() {
+  buildBoardDOM(size = this.state.size) {
+    this.el.boardGrid.style.setProperty('--board-size', String(size));
+    this.el.boardGrid.setAttribute('aria-label', `${size} by ${size} Collatz Checkers Board`);
     this.el.boardGrid.innerHTML = '';
-    this.cellEls = Array.from({ length: BOARD_SIZE }, () => new Array(BOARD_SIZE));
+    this.cellEls = Array.from({ length: size }, () => new Array(size));
+    this.fx.setBoardSize(size);
 
-    for (let y = 0; y < BOARD_SIZE; y++) {
-      for (let x = 0; x < BOARD_SIZE; x++) {
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
         const cell = document.createElement('div');
         cell.className = `cell ${(x + y) % 2 === 0 ? 'light' : 'dark'}`;
         cell.dataset.x = x;
@@ -266,13 +276,13 @@ class CollatzGameApp {
     });
     document.querySelectorAll('#setup-segmented .seg-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const rows = Number(btn.dataset.rows);
-        if (this.startingRows !== rows) {
-          this.startingRows = rows;
+        const id = btn.dataset.setup;
+        if (this.setupId !== id && BOARD_SETUPS[id]) {
+          this.setupId = id;
           this.exitTutorial(false);
           this.startNewMatch();
           this.syncSettingsModal();
-          this.showToast(rows === 2 ? 'Balanced (8)' : 'Classic (12)');
+          this.showToast(BOARD_SETUPS[id].label);
         }
       });
     });
@@ -349,7 +359,7 @@ class CollatzGameApp {
       btn.classList.toggle('active', btn.dataset.mode === this.mode);
     });
     document.querySelectorAll('#setup-segmented .seg-btn').forEach((btn) => {
-      btn.classList.toggle('active', Number(btn.dataset.rows) === this.startingRows);
+      btn.classList.toggle('active', btn.dataset.setup === this.setupId);
     });
     this.syncSoundControls();
     this.el.toggleHaptics.setAttribute('aria-pressed', String(this.sound.hapticsEnabled));
@@ -359,10 +369,11 @@ class CollatzGameApp {
   /* ---------------- Drag-to-Aim & Tap-to-Aim ---------------- */
 
   getCellFromPoint(clientX, clientY) {
+    const size = this.state.size;
     const rect = this.el.boardGrid.getBoundingClientRect();
-    const x = Math.floor(((clientX - rect.left) / rect.width) * BOARD_SIZE);
-    const y = Math.floor(((clientY - rect.top) / rect.height) * BOARD_SIZE);
-    if (x < 0 || x >= BOARD_SIZE || y < 0 || y >= BOARD_SIZE) return null;
+    const x = Math.floor(((clientX - rect.left) / rect.width) * size);
+    const y = Math.floor(((clientY - rect.top) / rect.height) * size);
+    if (x < 0 || x >= size || y < 0 || y >= size) return null;
     return { x, y };
   }
 
@@ -448,12 +459,13 @@ class CollatzGameApp {
   }
 
   openDirWheel(x, y) {
+    const size = this.state.size;
     this.selectedCell = { x, y };
     this.clearPreviewHighlights();
     this.cellEls[x][y].classList.add('selected');
 
-    const pctX = Math.max(16, Math.min(84, ((x + 0.5) / BOARD_SIZE) * 100));
-    const pctY = Math.max(16, Math.min(84, ((y + 0.5) / BOARD_SIZE) * 100));
+    const pctX = Math.max(16, Math.min(84, ((x + 0.5) / size) * 100));
+    const pctY = Math.max(16, Math.min(84, ((y + 0.5) / size) * 100));
     this.el.dirWheel.style.left = `${pctX}%`;
     this.el.dirWheel.style.top = `${pctY}%`;
     this.el.dirWheel.classList.remove('hidden');
@@ -462,8 +474,9 @@ class CollatzGameApp {
   clearPreviewHighlights() {
     this.fx.clearPreview();
     this.el.telemetry.classList.remove('visible');
-    for (let x = 0; x < BOARD_SIZE; x++) {
-      for (let y = 0; y < BOARD_SIZE; y++) {
+    const size = this.cellEls.length;
+    for (let x = 0; x < size; x++) {
+      for (let y = 0; y < size; y++) {
         this.cellEls[x][y].classList.remove('in-line', 'spawn-target', 'land-target');
       }
     }
@@ -473,8 +486,9 @@ class CollatzGameApp {
     this.selectedCell = null;
     this.el.dirWheel.classList.add('hidden');
     this.clearPreviewHighlights();
-    for (let x = 0; x < BOARD_SIZE; x++) {
-      for (let y = 0; y < BOARD_SIZE; y++) {
+    const size = this.cellEls.length;
+    for (let x = 0; x < size; x++) {
+      for (let y = 0; y < size; y++) {
         this.cellEls[x][y].classList.remove('selected');
       }
     }
@@ -648,12 +662,16 @@ class CollatzGameApp {
   /* ---------------- Rendering ---------------- */
 
   renderBoard(board, popKeys = []) {
+    const size = board.length;
+    if (this.cellEls.length !== size) {
+      this.buildBoardDOM(size);
+    }
     const popSet = new Set(popKeys);
     const activePlayer = this.state.currentPlayer;
     const canInteract = !this.isAnimating && !this.isReplaying && !this.isAITurn() && this.state.winner === 0;
 
-    for (let x = 0; x < BOARD_SIZE; x++) {
-      for (let y = 0; y < BOARD_SIZE; y++) {
+    for (let x = 0; x < size; x++) {
+      for (let y = 0; y < size; y++) {
         const cellEl = this.cellEls[x][y];
         const [p1, p2] = board[x][y];
         const hasOwn = canInteract && (activePlayer === 1 ? p1 > 0 : p2 > 0);
@@ -723,7 +741,9 @@ class CollatzGameApp {
   startNewMatch() {
     this.isReplaying = false;
     this.clearSelection();
-    this.history.reset(createInitialState(BOARD_SIZE, this.startingRows));
+    const cfg = BOARD_SETUPS[this.setupId];
+    this.history.reset(createInitialState(cfg.size, cfg.rows));
+    this.buildBoardDOM(cfg.size);
     this.matchStats = { captures: 0, bounces: 0 };
     this.sound.playSelect();
     this.syncUI();
@@ -753,8 +773,8 @@ class CollatzGameApp {
       const btn = document.createElement('button');
       btn.className = `history-row${idx === this.history.cursor ? ' active' : ''}`;
       if (idx === 0) {
-        const initCount = this.startingRows * 4;
-        btn.innerHTML = `<span>0 · Start</span><span>${initCount} – ${initCount}</span>`;
+        const initCounts = countPieces(entry.state.board);
+        btn.innerHTML = `<span>0 · Start</span><span>${initCounts.p1} – ${initCounts.p2}</span>`;
       } else {
         const s = entry.summary;
         const dot = `<span class="history-dot p${s.player}"></span>`;

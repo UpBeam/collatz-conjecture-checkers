@@ -23,6 +23,12 @@ test('initial board defaults to Balanced (8 pieces each) and supports Classic (1
   const cCounts = countPieces(classic.board);
   assert.equal(cCounts.p1, 12);
   assert.equal(cCounts.p2, 12);
+
+  const grand = createInitialState(10, 3);
+  const gCounts = countPieces(grand.board);
+  assert.equal(gCounts.p1, 15);
+  assert.equal(gCounts.p2, 15);
+  assert.equal(grand.size, 10);
 });
 
 test('Super-Ko filters out moves that repeat a previously seen board state', () => {

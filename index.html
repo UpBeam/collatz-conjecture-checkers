@@ -111,10 +111,11 @@
       </div>
 
       <div class="settings-section">
-        <p class="settings-label">Setup</p>
-        <div class="segmented" id="setup-segmented" style="grid-template-columns: 1fr 1fr;">
-          <button class="seg-btn active" data-rows="2">Balanced (8)</button>
-          <button class="seg-btn" data-rows="3">Classic (12)</button>
+        <p class="settings-label">Board</p>
+        <div class="segmented" id="setup-segmented" style="grid-template-columns: repeat(3, 1fr);">
+          <button class="seg-btn active" data-setup="balanced">8×8 · 8</button>
+          <button class="seg-btn" data-setup="classic">8×8 · 12</button>
+          <button class="seg-btn" data-setup="grand">10×10 · 15</button>
         </div>
       </div>
 

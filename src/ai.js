@@ -16,6 +16,8 @@ function evaluateState(state, aiPlayer) {
 
   const pIdx = aiPlayer - 1;
   const oppIdx = 1 - pIdx;
+  const mid = (state.size - 1) / 2;
+  const maxDist = state.size - 1;
   let positional = 0;
   let sharedBonus = 0;
 
@@ -23,13 +25,13 @@ function evaluateState(state, aiPlayer) {
     for (let y = 0; y < state.size; y++) {
       const cell = state.board[x][y];
       if (cell[pIdx] > 0) {
-        const distCenter = Math.abs(x - 3.5) + Math.abs(y - 3.5);
-        positional += (7 - distCenter) * 0.6;
+        const distCenter = Math.abs(x - mid) + Math.abs(y - mid);
+        positional += (maxDist - distCenter) * 0.6;
         if (cell[oppIdx] > 0) sharedBonus += 1.2;
       }
       if (cell[oppIdx] > 0) {
-        const distCenter = Math.abs(x - 3.5) + Math.abs(y - 3.5);
-        positional -= (7 - distCenter) * 0.45;
+        const distCenter = Math.abs(x - mid) + Math.abs(y - mid);
+        positional -= (maxDist - distCenter) * 0.45;
       }
     }
   }
