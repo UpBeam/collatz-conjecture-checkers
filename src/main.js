@@ -19,6 +19,7 @@ import { FXLayer } from './fx.js';
 import { MonetizationManager, THEMES } from './monetization.js';
 import { TUTORIAL_STEPS } from './tutorial.js';
 import { ICONS } from './icons.js';
+import { CollatzExplainer } from './collatz_explainer.js';
 
 const DIR_ARROWS = {
   n: '↑', ne: '↗', e: '→', se: '↘',
@@ -76,6 +77,7 @@ class CollatzGameApp {
       btnSound: document.getElementById('btn-sound'),
       btnThemes: document.getElementById('btn-themes'),
       btnHistory: document.getElementById('btn-history'),
+      btnCollatz: document.getElementById('btn-collatz'),
       btnTutorial: document.getElementById('btn-tutorial'),
       btnSettings: document.getElementById('btn-settings'),
       adBanner: document.getElementById('ad-banner-slot'),
@@ -101,6 +103,10 @@ class CollatzGameApp {
     };
 
     this.fx = new FXLayer(this.el.fxCanvas, this.el.boardFrame);
+    this.explainer = new CollatzExplainer(
+      document.getElementById('collatz-explainer-root'),
+      this.sound
+    );
     this.cellEls = [];
 
     this.injectIcons();
@@ -125,6 +131,7 @@ class CollatzGameApp {
   }
 
   injectIcons() {
+    this.el.btnCollatz.innerHTML = ICONS.collatz;
     this.el.btnTutorial.innerHTML = ICONS.help;
     this.el.btnHistory.innerHTML = ICONS.history;
     this.el.btnThemes.innerHTML = ICONS.themes;
@@ -220,6 +227,10 @@ class CollatzGameApp {
     this.el.btnHistory.addEventListener('click', () => {
       this.renderHistoryModal();
       this.openModal('modal-history');
+    });
+    this.el.btnCollatz.addEventListener('click', () => {
+      this.sound.playSelect();
+      this.openModal('modal-collatz');
     });
     this.el.btnTutorial.addEventListener('click', () => this.startTutorial());
 

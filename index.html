@@ -27,6 +27,7 @@
       </div>
 
       <div class="icon-group">
+        <button id="btn-collatz" class="icon-btn" data-tip="Why Collatz?" aria-label="Why Collatz Conjecture?"></button>
         <button id="btn-tutorial" class="icon-btn" data-tip="How to play" aria-label="How to play"></button>
         <button id="btn-history" class="icon-btn" data-tip="Move history" aria-label="Move history"></button>
         <button id="btn-themes" class="icon-btn" data-tip="Themes" aria-label="Themes"></button>
@@ -77,6 +78,17 @@
     <div class="tutorial-footer">
       <button id="btn-tutorial-skip" class="btn">Exit</button>
       <button id="btn-tutorial-next" class="btn primary">Next</button>
+    </div>
+  </div>
+
+  <!-- Visual Collatz Conjecture Explainer Modal -->
+  <div id="modal-collatz" class="modal-backdrop hidden">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-header">
+        <h2>Why Collatz? (3n + 1)</h2>
+        <button class="icon-btn" data-close-modal="modal-collatz" aria-label="Close"></button>
+      </div>
+      <div id="collatz-explainer-root"></div>
     </div>
   </div>
 

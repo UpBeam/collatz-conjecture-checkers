@@ -26,5 +26,6 @@ export const ICONS = {
   capture: svg(`<circle cx="10" cy="10" r="5.5"/><path d="M10 2.5v3M10 14.5v3M2.5 10h3M14.5 10h3"/>`, 14),
   hop: svg(`<path d="M3.5 13.5c2.2-5 6.8-5 9 0"/><path d="M10.5 12.5l2 1.2.8-2.2"/>`, 14),
   arrowRight: svg(`<path d="M4.5 10h11M11.5 6l4 4-4 4"/>`, 16),
+  collatz: svg(`<path d="M3 13.5l3.2-6 3.3 3.5L13 5l4 10"/><circle cx="17" cy="15" r="1.2" fill="currentColor" stroke="none"/>`),
   trophy: svg(`<path d="M6.5 4h7v4.2a3.5 3.5 0 0 1-7 0V4z"/><path d="M6.5 5.5H4.2a1.8 1.8 0 0 0 1.8 3.2"/><path d="M13.5 5.5h2.3a1.8 1.8 0 0 1-1.8 3.2"/><path d="M10 11.7V15.5M7 16h6"/>`, 28),
 };
