@@ -27,6 +27,12 @@ import {
   decodeReplay,
 } from './share.js';
 import { generateDailyPuzzle } from './daily.js';
+import {
+  OnlineClient,
+  generateRoomCode,
+  getOnlineServerUrl,
+  setOnlineServerUrl,
+} from './online.js';
 
 const DIR_ARROWS = {
   n: '↑', ne: '↗', e: '→', se: '↘',
@@ -84,6 +90,33 @@ class CollatzGameApp {
     this.demoSpeedIdx = 0; // 0 => 0.7x, 1 => 1.0x, 2 => 1.6x
     this.demoRunId = 0;
 
+    this.onlineActive = false;
+    this.onlineClient = new OnlineClient({
+      onQueued: () => {
+        this.el.onlineCodeTag.textContent = 'QUEUE';
+        this.el.onlineSeatTag.textContent = 'Searching…';
+        this.el.onlineBody.textContent = 'Looking for another human opponent…';
+      },
+      onWelcome: (msg) => this.onOnlineWelcome(msg),
+      onRoomStatus: (msg) => this.onOnlineRoomStatus(msg),
+      onMoveApplied: (msg) => this.onOnlineMoveApplied(msg),
+      onPeerLeft: () => {
+        this.el.onlineSeatTag.textContent = 'Opponent left';
+        this.el.onlineBody.textContent = 'Waiting for opponent to reconnect…';
+        this.showToast('Opponent disconnected');
+      },
+      onRematchRequested: () => {
+        this.showToast('Opponent wants a rematch!');
+      },
+      onRematchStart: (msg) => this.onOnlineRematchStart(msg),
+      onError: (message) => this.showToast(message),
+      onDisconnected: () => {
+        if (this.onlineActive) {
+          this.el.onlineSeatTag.textContent = 'Disconnected';
+        }
+      },
+    });
+
     this.el = {
       boardFrame: document.getElementById('board-frame'),
       boardGrid: document.getElementById('board-grid'),
@@ -102,6 +135,7 @@ class CollatzGameApp {
       btnSound: document.getElementById('btn-sound'),
       btnThemes: document.getElementById('btn-themes'),
       btnHistory: document.getElementById('btn-history'),
+      btnOnline: document.getElementById('btn-online'),
       btnDemo: document.getElementById('btn-demo'),
       btnDaily: document.getElementById('btn-daily'),
       btnCollatz: document.getElementById('btn-collatz'),
@@ -123,6 +157,18 @@ class CollatzGameApp {
       btnShareReplay: document.getElementById('btn-share-replay'),
       btnVictoryShare: document.getElementById('btn-victory-share'),
       victoryIcon: document.getElementById('victory-icon'),
+      // Online Mode
+      onlineBanner: document.getElementById('online-banner'),
+      onlineTitle: document.getElementById('online-title'),
+      onlineCodeTag: document.getElementById('online-code-tag'),
+      onlineSeatTag: document.getElementById('online-seat-tag'),
+      onlineBody: document.getElementById('online-body'),
+      btnOnlineInvite: document.getElementById('btn-online-invite'),
+      btnOnlineRematch: document.getElementById('btn-online-rematch'),
+      btnOnlineLeave: document.getElementById('btn-online-leave'),
+      inputRoomCode: document.getElementById('input-room-code'),
+      inputServerUrl: document.getElementById('input-server-url'),
+      leaderboardList: document.getElementById('leaderboard-list'),
       // Demo Mode
       demoBanner: document.getElementById('demo-banner'),
       demoTitle: document.getElementById('demo-title'),
@@ -180,6 +226,7 @@ class CollatzGameApp {
       !this.tutorialActive &&
       !this.dailyActive &&
       !this.demoActive &&
+      !this.onlineActive &&
       this.mode.startsWith('ai-') &&
       st.currentPlayer === 2 &&
       st.winner === 0
@@ -187,6 +234,7 @@ class CollatzGameApp {
   }
 
   injectIcons() {
+    this.el.btnOnline.innerHTML = ICONS.online;
     this.el.btnDemo.innerHTML = ICONS.demo;
     this.el.btnDaily.innerHTML = ICONS.daily;
     this.el.btnCollatz.innerHTML = ICONS.collatz;
@@ -293,6 +341,42 @@ class CollatzGameApp {
       this.renderHistoryModal();
       this.openModal('modal-history');
     });
+    this.el.btnOnline.addEventListener('click', () => {
+      this.openOnlineModal();
+    });
+    document.getElementById('btn-quick-match').addEventListener('click', () => {
+      this.closeModal('modal-online');
+      this.startOnlineQuickMatch();
+    });
+    document.getElementById('btn-create-room').addEventListener('click', () => {
+      this.closeModal('modal-online');
+      this.startOnlineRoom(generateRoomCode());
+    });
+    document.getElementById('btn-join-room').addEventListener('click', () => {
+      const code = this.el.inputRoomCode.value.trim().toUpperCase();
+      if (code.length < 4) {
+        this.showToast('Enter a room code');
+        return;
+      }
+      this.closeModal('modal-online');
+      this.startOnlineRoom(code);
+    });
+    document.getElementById('btn-save-server').addEventListener('click', () => {
+      setOnlineServerUrl(this.el.inputServerUrl.value);
+      this.showToast('Server URL saved');
+      this.loadLeaderboard();
+    });
+    this.el.btnOnlineInvite.addEventListener('click', () => {
+      if (!this.onlineClient.roomCode) return;
+      const base = `${window.location.origin}${window.location.pathname}`;
+      this.copyText(`${base}#join=${this.onlineClient.roomCode}`, 'Invite link copied');
+    });
+    this.el.btnOnlineRematch.addEventListener('click', () => {
+      this.onlineClient.requestRematch();
+      this.showToast('Rematch requested');
+    });
+    this.el.btnOnlineLeave.addEventListener('click', () => this.exitOnlineMode(true));
+
     this.el.btnDemo.addEventListener('click', () => this.startDemoMode());
     this.el.btnCollatzDemo.addEventListener('click', () => {
       this.closeModal('modal-collatz');
@@ -501,6 +585,11 @@ class CollatzGameApp {
   onBoardPointerDown(e) {
     if (this.isAnimating || this.isReplaying || this.demoActive || this.isAITurn()) return;
     if (this.state.winner !== 0) return;
+    if (this.onlineActive) {
+      if (!this.onlineClient.ready || this.onlineClient.seat !== this.state.currentPlayer) {
+        return;
+      }
+    }
 
     const hit = this.getCellFromPoint(e.clientX, e.clientY);
     if (!hit) return;
@@ -643,10 +732,17 @@ class CollatzGameApp {
 
   /* ---------------- Move Execution & Animation ---------------- */
 
-  async commitMove(x, y, dx, dy) {
+  async commitMove(x, y, dx, dy, fromServer = false) {
     if (this.isAnimating) return;
     const currentState = this.state;
     if (!isValidMove(currentState, x, y, dx, dy)) return;
+
+    // In Online mode, local player sends move to authoritative server and waits for broadcast
+    if (this.onlineActive && !fromServer) {
+      this.clearSelection();
+      this.onlineClient.sendMove(x, y, dx, dy);
+      return;
+    }
 
     this.isAnimating = true;
     this.clearSelection();
@@ -680,6 +776,16 @@ class CollatzGameApp {
 
     this.isAnimating = false;
     this.syncUI();
+
+    if (this.onlineActive) {
+      this.updateOnlineBanner();
+      if (nextState.winner !== 0) {
+        this.el.btnOnlineRematch.classList.remove('hidden');
+        this.sound.playVictory();
+        this.fx.spawnVictoryConfetti();
+      }
+      return;
+    }
 
     if (this.demoActive) {
       return;
@@ -1118,6 +1224,13 @@ class CollatzGameApp {
 
   handleUrlHash() {
     const hash = window.location.hash || '';
+    if (hash.startsWith('#join=')) {
+      const code = hash.slice(6).toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (code.length >= 4) {
+        this.startOnlineRoom(code);
+        return;
+      }
+    }
     if (hash === '#daily') {
       this.startDailyPuzzle();
       return;
@@ -1205,6 +1318,125 @@ class CollatzGameApp {
     if (!this.dailyActive) return;
     this.dailyActive = false;
     this.el.dailyBanner.classList.add('hidden');
+    if (resetToMatch) {
+      this.startNewMatch();
+    }
+  }
+
+  /* ---------------- Online Multiplayer & Leaderboards ---------------- */
+
+  openOnlineModal() {
+    this.el.inputServerUrl.value = getOnlineServerUrl();
+    this.openModal('modal-online');
+    this.loadLeaderboard();
+  }
+
+  async loadLeaderboard() {
+    const data = await this.onlineClient.fetchLeaderboard().catch(() => null);
+    if (!data) {
+      this.el.leaderboardList.innerHTML =
+        '<div style="font-size:12px;color:var(--ink-3);">Deploy worker/ (npx wrangler deploy) and save its URL below for live multiplayer &amp; leaderboards.</div>';
+      return;
+    }
+    if (!data.longestHops || data.longestHops.length === 0) {
+      this.el.leaderboardList.innerHTML =
+        '<div style="font-size:12px;color:var(--ink-3);">No verified records yet — be the first!</div>';
+      return;
+    }
+    this.el.leaderboardList.innerHTML = data.longestHops
+      .slice(0, 8)
+      .map(
+        (r, i) =>
+          `<div class="history-row"><span>#${i + 1} ${r.name}</span><span>${r.maxHop}-hop · ${r.totalBounces}b</span></div>`
+      )
+      .join('');
+  }
+
+  startOnlineQuickMatch() {
+    this.exitTutorial(false);
+    this.exitDailyPuzzle(false);
+    this.exitDemoMode(false);
+    if (!this.onlineClient.joinQuickMatch(this.setupId)) return;
+    this.onlineActive = true;
+    this.el.onlineBanner.classList.remove('hidden');
+    this.el.btnOnlineRematch.classList.add('hidden');
+    this.syncUI();
+  }
+
+  startOnlineRoom(code) {
+    this.exitTutorial(false);
+    this.exitDailyPuzzle(false);
+    this.exitDemoMode(false);
+    if (!this.onlineClient.connectRoom(code, this.setupId)) return;
+    this.onlineActive = true;
+    this.el.onlineCodeTag.textContent = code;
+    this.el.onlineSeatTag.textContent = 'Connecting…';
+    this.el.onlineBody.textContent = 'Share the invite link with a friend.';
+    this.el.btnOnlineRematch.classList.add('hidden');
+    this.el.onlineBanner.classList.remove('hidden');
+    this.syncUI();
+  }
+
+  onOnlineWelcome(msg) {
+    this.setupId = BOARD_SETUPS[msg.setupId] ? msg.setupId : 'balanced';
+    const cfg = BOARD_SETUPS[this.setupId];
+    let st = createInitialState(cfg.size, cfg.rows);
+    this.history.reset(st);
+    this.buildBoardDOM(cfg.size);
+
+    for (const m of msg.moves || []) {
+      const { nextState, events, summary } = executeMove(st, m.x, m.y, m.dx, m.dy);
+      this.history.push(nextState, m, summary, events);
+      st = nextState;
+    }
+
+    this.el.onlineCodeTag.textContent = msg.roomCode;
+    this.updateOnlineBanner();
+    this.syncUI();
+  }
+
+  onOnlineRoomStatus() {
+    this.updateOnlineBanner();
+    this.syncUI();
+  }
+
+  async onOnlineMoveApplied(msg) {
+    await this.commitMove(msg.x, msg.y, msg.dx, msg.dy, true);
+  }
+
+  onOnlineRematchStart(msg) {
+    const cfg = BOARD_SETUPS[msg.setupId] || BOARD_SETUPS.balanced;
+    this.history.reset(createInitialState(cfg.size, cfg.rows));
+    this.buildBoardDOM(cfg.size);
+    this.el.btnOnlineRematch.classList.add('hidden');
+    this.updateOnlineBanner();
+    this.syncUI();
+    this.showToast('Rematch started (seats swapped)');
+  }
+
+  updateOnlineBanner() {
+    const seat = this.onlineClient.seat;
+    const seatName = seat === 1 ? 'Red' : seat === 2 ? 'Blue' : 'Spectator';
+    this.el.onlineSeatTag.textContent = `You: ${seatName}`;
+    if (!this.onlineClient.ready) {
+      this.el.onlineBody.textContent = 'Waiting for opponent — send the invite link!';
+    } else if (this.state.winner !== 0) {
+      const w = this.state.winner === seat ? 'You win!' : this.state.winner === 3 ? 'Draw!' : 'Opponent wins!';
+      this.el.onlineBody.textContent = w;
+    } else if (seat === 0) {
+      this.el.onlineBody.textContent = `Spectating · ${this.state.currentPlayer === 1 ? 'Red' : 'Blue'}'s turn`;
+    } else if (this.state.currentPlayer === seat) {
+      this.el.onlineBody.textContent = 'Your turn — drag or tap a piece to move.';
+    } else {
+      this.el.onlineBody.textContent = "Opponent's turn…";
+    }
+  }
+
+  exitOnlineMode(resetToMatch) {
+    if (!this.onlineActive) return;
+    this.onlineActive = false;
+    this.onlineClient.disconnect();
+    this.el.onlineBanner.classList.add('hidden');
     if (resetToMatch) {
       this.startNewMatch();
     }

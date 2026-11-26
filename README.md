@@ -20,6 +20,17 @@ npm run pack:itch
 2. Upload `dist/collatz-checkers-itch.zip` to itch.io as an **HTML** project.
 3. Check **"This file will be played in the browser"**, enable **Mobile friendly**, and set viewport to e.g. `960 × 760` (responsive layout adapts automatically).
 
+## Online Multiplayer & Leaderboards (Cloudflare Worker)
+The authoritative WebSocket room server, Quick Match queue, and anti-cheat leaderboard live in `worker/`:
+
+```bash
+cd worker
+npm install
+npx wrangler deploy
+```
+
+Copy the deployed `https://collatz-checkers-online.<your-subdomain>.workers.dev` URL into `DEFAULT_PROD_SERVER` in `src/online.js` (or paste it into **Play Online → Worker Server URL** in the UI).
+
 ## Wrapping for iOS / Android (Capacitor)
 The project has zero build-step dependencies and is pre-wired in `src/monetization.js` for:
 - **Lifetime Theme Pack + Ad-Free ($0.99)** via RevenueCat / Capacitor Purchases (`collatz_lifetime_themes_099`) unlocking *Warm Modern Wood & Brass* and *Math-Chic Neon Minimalist*.

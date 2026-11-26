@@ -27,6 +27,7 @@
       </div>
 
       <div class="icon-group">
+        <button id="btn-online" class="icon-btn" data-tip="Play online" aria-label="Play online"></button>
         <button id="btn-demo" class="icon-btn" data-tip="Watch AI demo" aria-label="Watch AI demo"></button>
         <button id="btn-daily" class="icon-btn" data-tip="Daily puzzle" aria-label="Daily puzzle"></button>
         <button id="btn-collatz" class="icon-btn" data-tip="Why Collatz?" aria-label="Why Collatz Conjecture?"></button>
@@ -83,6 +84,25 @@
     </div>
   </div>
 
+  <!-- Online Multiplayer Live Status Bar -->
+  <div id="online-banner" class="tutorial-banner hidden">
+    <div class="tutorial-head">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <h3 id="online-title">Online</h3>
+        <span id="online-code-tag" class="demo-phase-tag">-----</span>
+      </div>
+      <span id="online-seat-tag" class="tutorial-step-num">Connecting…</span>
+    </div>
+    <p id="online-body">Waiting for opponent to join.</p>
+    <div class="tutorial-footer">
+      <button id="btn-online-invite" class="btn primary">Copy Invite</button>
+      <div class="icon-group">
+        <button id="btn-online-rematch" class="btn hidden">Rematch</button>
+        <button id="btn-online-leave" class="btn">Leave</button>
+      </div>
+    </div>
+  </div>
+
   <!-- AI vs AI Live Demo Bar (with real-time Collatz step overlays) -->
   <div id="demo-banner" class="tutorial-banner hidden">
     <div class="tutorial-head">
@@ -116,6 +136,42 @@
     <div class="tutorial-footer">
       <button id="btn-daily-exit" class="btn">Exit</button>
       <button id="btn-daily-action" class="btn primary">Hint</button>
+    </div>
+  </div>
+
+  <!-- Online Multiplayer & Leaderboard Modal -->
+  <div id="modal-online" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Play Online</h2>
+        <button class="icon-btn" data-close-modal="modal-online" aria-label="Close"></button>
+      </div>
+
+      <div class="settings-section">
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <button id="btn-quick-match" class="btn primary" style="flex:1;">Quick Match</button>
+          <button id="btn-create-room" class="btn" style="flex:1;">Create Room</button>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <input id="input-room-code" type="text" maxlength="8" placeholder="Room code (e.g. K7M2P)" style="flex:1;height:36px;padding:0 10px;border-radius:var(--r-mid);border:1px solid var(--rule-strong);background:var(--bg-surface);color:var(--ink);font-family:var(--font-mono);font-size:12.5px;text-transform:uppercase;" />
+          <button id="btn-join-room" class="btn">Join</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <p class="settings-label">Global Top Hop Chains</p>
+        <div id="leaderboard-list" class="history-list" style="max-height:140px;margin-bottom:0;">
+          <div style="font-size:12px;color:var(--ink-3);">Connect a Cloudflare Worker to view live records.</div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <p class="settings-label">Worker Server URL</p>
+        <div style="display:flex;gap:6px;">
+          <input id="input-server-url" type="url" placeholder="https://collatz-checkers-online.your-sub.workers.dev" style="flex:1;height:32px;padding:0 8px;border-radius:var(--r-sm);border:1px solid var(--rule);background:var(--bg-surface);color:var(--ink);font-family:var(--font-mono);font-size:11px;" />
+          <button id="btn-save-server" class="btn" style="height:32px;padding:0 10px;font-size:12px;">Save</button>
+        </div>
+      </div>
     </div>
   </div>
 
