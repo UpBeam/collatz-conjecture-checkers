@@ -27,6 +27,7 @@
       </div>
 
       <div class="icon-group">
+        <button id="btn-demo" class="icon-btn" data-tip="Watch AI demo" aria-label="Watch AI demo"></button>
         <button id="btn-daily" class="icon-btn" data-tip="Daily puzzle" aria-label="Daily puzzle"></button>
         <button id="btn-collatz" class="icon-btn" data-tip="Why Collatz?" aria-label="Why Collatz Conjecture?"></button>
         <button id="btn-tutorial" class="icon-btn" data-tip="How to play" aria-label="How to play"></button>
@@ -82,6 +83,29 @@
     </div>
   </div>
 
+  <!-- AI vs AI Live Demo Bar (with real-time Collatz step overlays) -->
+  <div id="demo-banner" class="tutorial-banner hidden">
+    <div class="tutorial-head">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <h3 id="demo-title">AI Demo</h3>
+        <span id="demo-phase" class="demo-phase-tag">Ready</span>
+      </div>
+      <span id="demo-math" class="tutorial-step-num" style="font-family:var(--font-mono);">3n + 1</span>
+    </div>
+    <p id="demo-body">Two AIs playing with live binary Collatz overlays.</p>
+    <div class="tutorial-footer">
+      <div class="icon-group">
+        <button id="btn-demo-pause" class="icon-btn" data-tip="Pause / Resume" data-tip-pos="top" aria-label="Pause or resume"></button>
+        <button id="btn-demo-step" class="icon-btn" data-tip="Step 1 move" data-tip-pos="top" aria-label="Step one move"></button>
+        <button id="btn-demo-speed" class="btn" style="height:36px;padding:0 10px;font-variant-numeric:tabular-nums;">0.7×</button>
+      </div>
+      <div class="icon-group">
+        <button id="btn-demo-takeover" class="btn primary">Take over</button>
+        <button id="btn-demo-exit" class="btn">Exit</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Daily Collatz Puzzle Bar -->
   <div id="daily-banner" class="tutorial-banner hidden">
     <div class="tutorial-head">
@@ -103,6 +127,7 @@
         <button class="icon-btn" data-close-modal="modal-collatz" aria-label="Close"></button>
       </div>
       <div id="collatz-explainer-root"></div>
+      <button id="btn-collatz-demo" class="btn" style="width: 100%; margin-top: 10px;">Watch live AI vs AI demo</button>
     </div>
   </div>
 

@@ -15,7 +15,9 @@ export class FXLayer {
     this.particles = [];
     this.rings = [];
     this.trails = [];
+    this.callouts = [];
     this.preview = null;
+    this.binaryOverlay = null;
     this.activeHopper = null;
     this.size = 400;
     this.boardSize = 8;
@@ -158,6 +160,27 @@ export class FXLayer {
     this.preview = null;
   }
 
+  setBinaryOverlay(overlay) {
+    this.binaryOverlay = overlay;
+  }
+
+  clearBinaryOverlay() {
+    this.binaryOverlay = null;
+  }
+
+  spawnCallout(gx, gy, text, color) {
+    const { x, y, cellSize } = this.cellCenter(gx, gy);
+    this.callouts.push({
+      x,
+      y: y - cellSize * 0.22,
+      vy: -0.45,
+      text,
+      color,
+      life: 1,
+      decay: 0.022,
+    });
+  }
+
   animateHopArc(fromX, fromY, toX, toY, player, durationMs = 145) {
     return new Promise((resolve) => {
       const colors = this.getThemeColors();
@@ -239,10 +262,35 @@ export class FXLayer {
     ctx.restore();
   }
 
+  drawBinaryOverlay(ctx) {
+    if (!this.binaryOverlay || !this.binaryOverlay.line) return;
+    const { line, bits, player } = this.binaryOverlay;
+    const colors = this.getThemeColors();
+    const activeCol = player === 1 ? colors.p1 : colors.p2;
+
+    ctx.save();
+    ctx.font = '700 10px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      const val = bits[i] ?? 0;
+      const { x, y, cellSize } = this.cellCenter(c.x, c.y);
+      const bx = x - cellSize * 0.44;
+      const by = y - cellSize * 0.44;
+
+      ctx.fillStyle = val >= 2 ? colors.accent : val === 1 ? activeCol : 'rgba(148,163,184,0.45)';
+      ctx.fillText(String(val), bx, by);
+    }
+    ctx.restore();
+  }
+
   loop() {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.size, this.size);
 
+    this.drawBinaryOverlay(ctx);
     this.drawPreview(ctx);
 
     // Expanding contact rings
@@ -317,6 +365,30 @@ export class FXLayer {
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.radius * p.life, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
+    }
+
+    // Restrained Demo-mode operation micro-callouts
+    for (let i = this.callouts.length - 1; i >= 0; i--) {
+      const c = this.callouts[i];
+      c.y += c.vy;
+      c.life -= c.decay;
+      if (c.life <= 0) {
+        this.callouts.splice(i, 1);
+        continue;
+      }
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, c.life * 1.35);
+      ctx.font = '700 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(17, 19, 24, 0.85)';
+      const w = ctx.measureText(c.text).width + 10;
+      ctx.beginPath();
+      ctx.roundRect(c.x - w / 2, c.y - 9, w, 18, 4);
+      ctx.fill();
+      ctx.fillStyle = c.color;
+      ctx.fillText(c.text, c.x, c.y);
       ctx.restore();
     }
 

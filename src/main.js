@@ -79,6 +79,11 @@ class CollatzGameApp {
     this.dailySolved = false;
     this.dailySolveSummary = null;
 
+    this.demoActive = false;
+    this.demoPaused = false;
+    this.demoSpeedIdx = 0; // 0 => 0.7x, 1 => 1.0x, 2 => 1.6x
+    this.demoRunId = 0;
+
     this.el = {
       boardFrame: document.getElementById('board-frame'),
       boardGrid: document.getElementById('board-grid'),
@@ -97,8 +102,10 @@ class CollatzGameApp {
       btnSound: document.getElementById('btn-sound'),
       btnThemes: document.getElementById('btn-themes'),
       btnHistory: document.getElementById('btn-history'),
+      btnDemo: document.getElementById('btn-demo'),
       btnDaily: document.getElementById('btn-daily'),
       btnCollatz: document.getElementById('btn-collatz'),
+      btnCollatzDemo: document.getElementById('btn-collatz-demo'),
       btnTutorial: document.getElementById('btn-tutorial'),
       btnSettings: document.getElementById('btn-settings'),
       adBanner: document.getElementById('ad-banner-slot'),
@@ -116,6 +123,17 @@ class CollatzGameApp {
       btnShareReplay: document.getElementById('btn-share-replay'),
       btnVictoryShare: document.getElementById('btn-victory-share'),
       victoryIcon: document.getElementById('victory-icon'),
+      // Demo Mode
+      demoBanner: document.getElementById('demo-banner'),
+      demoTitle: document.getElementById('demo-title'),
+      demoPhase: document.getElementById('demo-phase'),
+      demoMath: document.getElementById('demo-math'),
+      demoBody: document.getElementById('demo-body'),
+      btnDemoPause: document.getElementById('btn-demo-pause'),
+      btnDemoStep: document.getElementById('btn-demo-step'),
+      btnDemoSpeed: document.getElementById('btn-demo-speed'),
+      btnDemoTakeover: document.getElementById('btn-demo-takeover'),
+      btnDemoExit: document.getElementById('btn-demo-exit'),
       // Daily Puzzle
       dailyBanner: document.getElementById('daily-banner'),
       dailyTitle: document.getElementById('daily-title'),
@@ -161,6 +179,7 @@ class CollatzGameApp {
     return (
       !this.tutorialActive &&
       !this.dailyActive &&
+      !this.demoActive &&
       this.mode.startsWith('ai-') &&
       st.currentPlayer === 2 &&
       st.winner === 0
@@ -168,6 +187,7 @@ class CollatzGameApp {
   }
 
   injectIcons() {
+    this.el.btnDemo.innerHTML = ICONS.demo;
     this.el.btnDaily.innerHTML = ICONS.daily;
     this.el.btnCollatz.innerHTML = ICONS.collatz;
     this.el.btnTutorial.innerHTML = ICONS.help;
@@ -177,6 +197,8 @@ class CollatzGameApp {
     this.el.btnUndo.innerHTML = ICONS.undo;
     this.el.btnRedo.innerHTML = ICONS.redo;
     this.el.btnNew.innerHTML = ICONS.restart;
+    this.el.btnDemoPause.innerHTML = ICONS.pause;
+    this.el.btnDemoStep.innerHTML = ICONS.step;
     this.el.btnReplayPlay.innerHTML = `${ICONS.play}<span>Replay</span>`;
     this.el.btnShareReplay.innerHTML = `${ICONS.share}<span>Share</span>`;
     this.el.btnVictoryShare.innerHTML = `${ICONS.share}<span>Share</span>`;
@@ -270,6 +292,11 @@ class CollatzGameApp {
     this.el.btnHistory.addEventListener('click', () => {
       this.renderHistoryModal();
       this.openModal('modal-history');
+    });
+    this.el.btnDemo.addEventListener('click', () => this.startDemoMode());
+    this.el.btnCollatzDemo.addEventListener('click', () => {
+      this.closeModal('modal-collatz');
+      this.startDemoMode();
     });
     this.el.btnDaily.addEventListener('click', () => this.startDailyPuzzle());
     this.el.btnCollatz.addEventListener('click', () => {
@@ -380,6 +407,34 @@ class CollatzGameApp {
       }
     });
 
+    // Demo Mode controls
+    this.el.btnDemoPause.addEventListener('click', () => this.toggleDemoPause());
+    this.el.btnDemoStep.addEventListener('click', () => this.stepDemoOnce());
+    this.el.btnDemoSpeed.addEventListener('click', () => this.cycleDemoSpeed());
+    this.el.btnDemoTakeover.addEventListener('click', () => this.exitDemoMode(false));
+    this.el.btnDemoExit.addEventListener('click', () => this.exitDemoMode(true));
+
+    // Keyboard shortcuts (itch.io & desktop polish)
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const openModal = document.querySelector('.modal-backdrop:not(.hidden)');
+        if (openModal) {
+          openModal.classList.add('hidden');
+          return;
+        }
+        if (this.demoActive) this.exitDemoMode(true);
+        else if (this.tutorialActive) this.exitTutorial(true);
+        else if (this.dailyActive) this.exitDailyPuzzle(true);
+        else this.clearSelection();
+      } else if (e.key === ' ' && this.demoActive) {
+        e.preventDefault();
+        this.toggleDemoPause();
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !this.demoActive) {
+        e.preventDefault();
+        this.handleUndo();
+      }
+    });
+
     // Tutorial
     this.el.btnTutSkip.addEventListener('click', () => this.exitTutorial(true));
     this.el.btnTutNext.addEventListener('click', () => this.advanceTutorial());
@@ -444,7 +499,7 @@ class CollatzGameApp {
   }
 
   onBoardPointerDown(e) {
-    if (this.isAnimating || this.isReplaying || this.isAITurn()) return;
+    if (this.isAnimating || this.isReplaying || this.demoActive || this.isAITurn()) return;
     if (this.state.winner !== 0) return;
 
     const hit = this.getCellFromPoint(e.clientX, e.clientY);
@@ -610,7 +665,11 @@ class CollatzGameApp {
       }
     }
 
-    await this.playMoveEvents(events, this.speedScale);
+    await this.playMoveEvents(events, this.demoActive ? this.getDemoSpeed() : this.speedScale, {
+      narrate: this.demoActive,
+      boardBefore: currentState.board,
+      summary,
+    });
 
     this.history.push(nextState, { x, y, dx, dy }, summary, events);
     this.matchStats.captures += summary.opponentCaptures;
@@ -621,6 +680,10 @@ class CollatzGameApp {
 
     this.isAnimating = false;
     this.syncUI();
+
+    if (this.demoActive) {
+      return;
+    }
 
     if (this.dailyActive) {
       await this.handleDailyMoveResult(nextState, summary);
@@ -643,50 +706,121 @@ class CollatzGameApp {
     }
   }
 
-  async playMoveEvents(events, speedScale = 1) {
+  async playMoveEvents(events, speedScale = 1, opts = {}) {
     const colors = this.fx.getThemeColors();
+    const narrate = Boolean(opts.narrate);
+    let activeLine = null;
+    let activePlayer = 1;
+    let lineDecimal = 0;
+
+    const extractBits = (board, line, player) => {
+      const pIdx = player - 1;
+      return line.map((c) => board[c.x][c.y][pIdx]);
+    };
+
+    const bitsToInt = (bits) => {
+      // Trim leading zeros before first piece so the binary number starts at the backmost piece (LSB = 1)
+      const first = bits.findIndex((b) => b > 0);
+      if (first === -1) return 0;
+      let val = 0;
+      for (let i = first; i < bits.length; i++) {
+        val += bits[i] * (1 << (i - first));
+      }
+      return val;
+    };
 
     for (const ev of events) {
       if (ev.type === 'select_line') {
+        activeLine = ev.line;
+        activePlayer = ev.player;
         for (const c of ev.line) {
           this.cellEls[c.x][c.y].classList.add('in-line');
         }
-        await sleep(95 / speedScale);
+        if (narrate && opts.boardBefore) {
+          const bits = extractBits(opts.boardBefore, ev.line, ev.player);
+          lineDecimal = bitsToInt(bits);
+          this.fx.setBinaryOverlay({ line: ev.line, bits, player: ev.player });
+          const who = ev.player === 1 ? 'Red' : 'Blue';
+          const dirArrow = DIR_ARROWS[opts.summary?.dirId] || '→';
+          const activeCount = bits.filter((b) => b > 0).length;
+          this.el.demoPhase.textContent = `Line ${dirArrow}`;
+          this.el.demoMath.textContent = `n = ${lineDecimal}`;
+          this.el.demoBody.textContent = `${who} selects line ${dirArrow} (${activeCount} piece${activeCount === 1 ? '' : 's'}).`;
+          await sleep(480 / speedScale);
+        } else {
+          await sleep(95 / speedScale);
+        }
       } else if (ev.type === 'replicate') {
         this.renderBoard(ev.boardAfter, ev.spawns.map((s) => `${s.toX},${s.toY}`));
         this.sound.playReplicate(ev.spawns.length);
         const col = ev.player === 1 ? colors.p1 : colors.p2;
+        let anyBounced = false;
         for (const sp of ev.spawns) {
           this.fx.spawnRing(sp.toX, sp.toY, col, 0.52);
           if (sp.bounced) {
+            anyBounced = true;
             this.fx.spawnWallSparks(sp.toX, sp.toY, sp.bouncedX, sp.bouncedY, colors.accent);
             this.sound.playBounce();
           }
         }
-        await sleep(230 / speedScale);
+        if (narrate && activeLine) {
+          const bits = extractBits(ev.boardAfter, activeLine, activePlayer);
+          this.fx.setBinaryOverlay({ line: activeLine, bits, player: activePlayer });
+          const firstSp = ev.spawns[0];
+          if (firstSp) {
+            this.fx.spawnCallout(firstSp.toX, firstSp.toY, anyBounced ? '+2n · reflect' : '+2n', colors.accent);
+          }
+          this.el.demoPhase.textContent = '1. Clone (+2n)';
+          this.el.demoMath.textContent = `${lineDecimal} + ${2 * lineDecimal} = ${3 * lineDecimal}`;
+          this.el.demoBody.textContent = `Each piece clones 1 tile ahead${anyBounced ? ' (reflecting off wall)' : ''}.`;
+          await sleep(620 / speedScale);
+        } else {
+          await sleep(230 / speedScale);
+        }
       } else if (ev.type === 'hop_start') {
         this.renderBoard(ev.boardAfter);
         if (ev.isDoubleCarry) {
           this.sound.playDoubleCarry();
           this.fx.spawnRing(ev.x, ev.y, colors.accent, 0.72);
-          await sleep(140 / speedScale);
+          if (narrate) {
+            this.fx.spawnCallout(ev.x, ev.y, 'carry', colors.accent);
+            this.el.demoPhase.textContent = '3. Double Carry';
+            this.el.demoBody.textContent = 'Leftover double stack resolves by jumping forward.';
+            await sleep(420 / speedScale);
+          } else {
+            await sleep(140 / speedScale);
+          }
+        } else if (narrate) {
+          this.el.demoPhase.textContent = '2. Hop (+1)';
+          this.el.demoMath.textContent = `${3 * lineDecimal} + 1`;
+          this.el.demoBody.textContent = 'Back piece hops forward, eating 1 per occupied square until empty.';
+          await sleep(300 / speedScale);
         }
       } else if (ev.type === 'hop_step') {
-        const hopMs = Math.max(70, 140 / speedScale);
+        const hopMs = Math.max(70, (narrate ? 175 : 140) / speedScale);
         await this.fx.animateHopArc(ev.fromX, ev.fromY, ev.toX, ev.toY, ev.player, hopMs);
 
         if (ev.bounced) {
           this.sound.playBounce();
           this.fx.spawnWallSparks(ev.toX, ev.toY, ev.bouncedX, ev.bouncedY, colors.accent);
           this.fx.shake(2.5, 85);
+          if (narrate) this.fx.spawnCallout(ev.toX, ev.toY, 'bounce', colors.accent);
         }
 
         this.renderBoard(ev.boardAfter, ev.landed ? [`${ev.toX},${ev.toY}`] : []);
+        if (narrate && activeLine) {
+          const bits = extractBits(ev.boardAfter, activeLine, activePlayer);
+          this.fx.setBinaryOverlay({ line: activeLine, bits, player: activePlayer });
+        }
 
         if (ev.landed) {
           this.sound.playLand();
           const col = ev.player === 1 ? colors.p1 : colors.p2;
           this.fx.spawnRing(ev.toX, ev.toY, col, 0.56);
+          if (narrate) {
+            this.el.demoBody.textContent = `Landed on empty square (${ev.stepIndex + 1} hop${ev.stepIndex === 0 ? '' : 's'}).`;
+            await sleep(340 / speedScale);
+          }
         } else {
           const isOppCapture = ev.eaten !== ev.player;
           this.sound.playHop(ev.stepIndex, isOppCapture);
@@ -695,10 +829,14 @@ class CollatzGameApp {
           if (isOppCapture) {
             this.fx.spawnRing(ev.toX, ev.toY, colors.accent, 0.68);
             this.fx.shake(3.5, 95);
+            if (narrate) this.fx.spawnCallout(ev.toX, ev.toY, 'capture', colors.accent);
           }
         }
       } else if (ev.type === 'turn_end') {
         this.clearPreviewHighlights();
+        if (narrate) {
+          this.fx.clearBinaryOverlay();
+        }
       }
     }
   }
@@ -799,6 +937,7 @@ class CollatzGameApp {
 
   startNewMatch() {
     this.isReplaying = false;
+    this.exitDemoMode(false);
     this.exitDailyPuzzle(false);
     this.clearSelection();
     const cfg = BOARD_SETUPS[this.setupId];
@@ -1071,9 +1210,124 @@ class CollatzGameApp {
     }
   }
 
+  /* ---------------- AI vs AI Live Demo Mode ---------------- */
+
+  getDemoSpeed() {
+    return [0.7, 1.0, 1.6][this.demoSpeedIdx] || 0.7;
+  }
+
+  startDemoMode() {
+    this.exitTutorial(false);
+    this.exitDailyPuzzle(false);
+    this.demoActive = true;
+    this.demoPaused = false;
+    this.demoRunId += 1;
+    const runId = this.demoRunId;
+
+    const cfg = BOARD_SETUPS[this.setupId];
+    this.history.reset(createInitialState(cfg.size, cfg.rows));
+    this.buildBoardDOM(cfg.size);
+    this.matchStats = { captures: 0, bounces: 0, maxHop: 0 };
+
+    this.el.btnDemoPause.innerHTML = ICONS.pause;
+    this.el.btnDemoSpeed.textContent = `${this.getDemoSpeed().toFixed(1)}×`;
+    this.el.demoPhase.textContent = 'Starting';
+    this.el.demoMath.textContent = '3n + 1';
+    this.el.demoBody.textContent = 'Watching two AIs play with live binary Collatz overlays.';
+    this.el.demoBanner.classList.remove('hidden');
+    this.syncUI();
+    this.sound.playSelect();
+
+    this.runDemoLoop(runId);
+  }
+
+  async runDemoLoop(runId) {
+    await sleep(450);
+    while (this.demoActive && this.demoRunId === runId) {
+      if (this.demoPaused) {
+        await sleep(160);
+        continue;
+      }
+      if (this.state.winner !== 0) {
+        const who = this.state.winner === 1 ? 'Red AI' : this.state.winner === 2 ? 'Blue AI' : 'Draw';
+        this.el.demoPhase.textContent = 'Finished';
+        this.el.demoBody.textContent = `${who} wins in ${this.history.moveCount} turns. Restarting demo…`;
+        this.sound.playVictory();
+        this.fx.spawnVictoryConfetti();
+        await sleep(2600);
+        if (!this.demoActive || this.demoRunId !== runId || this.demoPaused) continue;
+        const cfg = BOARD_SETUPS[this.setupId];
+        this.history.reset(createInitialState(cfg.size, cfg.rows));
+        this.buildBoardDOM(cfg.size);
+        this.syncUI();
+        await sleep(450);
+        continue;
+      }
+
+      await this.executeDemoTurn();
+      await sleep(520 / this.getDemoSpeed());
+    }
+  }
+
+  async executeDemoTurn() {
+    if (!this.demoActive || this.isAnimating || this.state.winner !== 0) return;
+    const seen = this.history.getSeenHashes();
+    const diff = this.state.currentPlayer === 1 ? 'hard' : 'medium';
+    const move = chooseAIMove(this.state, diff, seen);
+    if (!move) {
+      const winner = this.state.currentPlayer === 1 ? 2 : 1;
+      this.history.entries[this.history.cursor].state.winner = winner;
+      this.syncUI();
+      return;
+    }
+    await this.commitMove(move.x, move.y, move.dx, move.dy);
+  }
+
+  toggleDemoPause() {
+    if (!this.demoActive) return;
+    this.demoPaused = !this.demoPaused;
+    this.el.btnDemoPause.innerHTML = this.demoPaused ? ICONS.play : ICONS.pause;
+    this.sound.playSelect();
+  }
+
+  async stepDemoOnce() {
+    if (!this.demoActive || this.isAnimating) return;
+    if (!this.demoPaused) {
+      this.demoPaused = true;
+      this.el.btnDemoPause.innerHTML = ICONS.play;
+    }
+    await this.executeDemoTurn();
+  }
+
+  cycleDemoSpeed() {
+    this.demoSpeedIdx = (this.demoSpeedIdx + 1) % 3;
+    this.el.btnDemoSpeed.textContent = `${this.getDemoSpeed().toFixed(1)}×`;
+    this.sound.playSelect();
+  }
+
+  exitDemoMode(resetToMatch) {
+    if (!this.demoActive) return;
+    this.demoActive = false;
+    this.demoPaused = false;
+    this.demoRunId += 1;
+    this.fx.clearBinaryOverlay();
+    this.el.demoBanner.classList.add('hidden');
+    if (resetToMatch) {
+      this.startNewMatch();
+    } else {
+      // Take over from the live demo position!
+      this.syncUI();
+      this.showToast('You took over the board');
+      if (this.isAITurn()) {
+        this.runAITurn();
+      }
+    }
+  }
+
   /* ---------------- Interactive Tutorial ---------------- */
 
   startTutorial() {
+    this.exitDemoMode(false);
     this.exitDailyPuzzle(false);
     this.tutorialActive = true;
     this.tutorialIndex = 0;
