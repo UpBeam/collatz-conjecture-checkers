@@ -5,15 +5,12 @@
 
 const STORAGE_SERVER_KEY = 'collatz_online_server_url_v1';
 
-// After deploying `cd worker && npx wrangler deploy`, set your deployed workers.dev URL here:
-export const DEFAULT_PROD_SERVER = '';
+// Live Cloudflare Worker + Durable Objects multiplayer & leaderboard backend
+export const DEFAULT_PROD_SERVER = 'https://collatz-checkers-online.upbeam.workers.dev';
 
 export function getOnlineServerUrl() {
   const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_SERVER_KEY) : '';
   if (saved) return saved.replace(/\/+$/, '');
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return 'http://localhost:8787';
-  }
   return DEFAULT_PROD_SERVER;
 }
 
