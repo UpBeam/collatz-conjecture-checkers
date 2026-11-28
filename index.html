@@ -43,6 +43,7 @@
       <div id="board-frame" class="board-frame">
         <div id="board-grid" class="board-grid" role="grid" aria-label="8 by 8 Collatz Checkers Board"></div>
         <canvas id="fx-canvas" class="fx-canvas"></canvas>
+        <canvas id="fpv-canvas" class="fpv-canvas hidden"></canvas>
         <div id="dir-wheel" class="dir-wheel hidden" role="group" aria-label="Direction"></div>
       </div>
     </main>
@@ -58,6 +59,7 @@
       </div>
 
       <div class="icon-group">
+        <button id="btn-fpv" class="icon-btn" data-tip="First-person 3D" data-tip-pos="top" aria-label="Toggle first-person view"></button>
         <button id="btn-mode" class="icon-btn" data-tip="Opponent: AI Medium" data-tip-pos="top" aria-label="Change opponent"></button>
         <button id="btn-sound" class="icon-btn" data-tip="Sound on" data-tip-pos="top" aria-label="Toggle sound"></button>
         <button id="btn-new" class="icon-btn accent" data-tip="New match" data-tip-pos="top" data-tip-align="right" aria-label="New match"></button>

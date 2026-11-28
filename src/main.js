@@ -33,6 +33,7 @@ import {
   getOnlineServerUrl,
   setOnlineServerUrl,
 } from './online.js';
+import { FirstPersonView } from './fpv.js';
 
 const DIR_ARROWS = {
   n: '↑', ne: '↗', e: '→', se: '↘',
@@ -121,6 +122,7 @@ class CollatzGameApp {
       boardFrame: document.getElementById('board-frame'),
       boardGrid: document.getElementById('board-grid'),
       fxCanvas: document.getElementById('fx-canvas'),
+      fpvCanvas: document.getElementById('fpv-canvas'),
       dirWheel: document.getElementById('dir-wheel'),
       telemetry: document.getElementById('telemetry-bar'),
       pillP1: document.getElementById('pill-p1'),
@@ -130,6 +132,7 @@ class CollatzGameApp {
       turnBadge: document.getElementById('turn-badge'),
       btnUndo: document.getElementById('btn-undo'),
       btnRedo: document.getElementById('btn-redo'),
+      btnFpv: document.getElementById('btn-fpv'),
       btnMode: document.getElementById('btn-mode'),
       btnNew: document.getElementById('btn-new'),
       btnSound: document.getElementById('btn-sound'),
@@ -197,6 +200,8 @@ class CollatzGameApp {
     };
 
     this.fx = new FXLayer(this.el.fxCanvas, this.el.boardFrame);
+    this.fpv = new FirstPersonView(this.el.fpvCanvas);
+    this.fpvActive = false;
     this.explainer = new CollatzExplainer(
       document.getElementById('collatz-explainer-root'),
       this.sound
@@ -244,6 +249,7 @@ class CollatzGameApp {
     this.el.btnSettings.innerHTML = ICONS.settings;
     this.el.btnUndo.innerHTML = ICONS.undo;
     this.el.btnRedo.innerHTML = ICONS.redo;
+    this.el.btnFpv.innerHTML = ICONS.fpv;
     this.el.btnNew.innerHTML = ICONS.restart;
     this.el.btnDemoPause.innerHTML = ICONS.pause;
     this.el.btnDemoStep.innerHTML = ICONS.step;
@@ -317,8 +323,11 @@ class CollatzGameApp {
 
   bindEvents() {
     this.el.boardGrid.addEventListener('pointerdown', (e) => this.onBoardPointerDown(e));
+    this.el.fpvCanvas.addEventListener('pointerdown', (e) => this.onBoardPointerDown(e));
     window.addEventListener('pointermove', (e) => this.onWindowPointerMove(e));
     window.addEventListener('pointerup', () => this.onWindowPointerUp());
+
+    this.el.btnFpv.addEventListener('click', () => this.toggleFpvMode());
 
     document.addEventListener('pointerdown', (e) => {
       if (!this.el.boardFrame.contains(e.target) && this.selectedCell) {
@@ -558,7 +567,29 @@ class CollatzGameApp {
 
   /* ---------------- Drag-to-Aim & Tap-to-Aim ---------------- */
 
+  toggleFpvMode() {
+    this.fpvActive = !this.fpvActive;
+    this.clearSelection();
+    this.el.fpvCanvas.classList.toggle('hidden', !this.fpvActive);
+    this.el.btnFpv.classList.toggle('accent', this.fpvActive);
+    this.el.btnFpv.setAttribute('data-tip', this.fpvActive ? 'Top-down 2D' : 'First-person 3D');
+    this.fpv.setBoard(this.state.board, this.state.size, this.getFpvAnchorPlayer());
+    this.fpv.setActive(this.fpvActive);
+    this.sound.playSelect();
+    this.showToast(this.fpvActive ? 'First-person 3D view' : 'Top-down 2D view');
+  }
+
+  getFpvAnchorPlayer() {
+    if (this.onlineActive && this.onlineClient.seat > 0) return this.onlineClient.seat;
+    if (this.mode === 'pvp') return this.state.currentPlayer;
+    return 1;
+  }
+
   getCellFromPoint(clientX, clientY) {
+    if (this.fpvActive) {
+      const picked = this.fpv.pickCell(clientX, clientY);
+      return picked ? { x: picked.x, y: picked.y } : null;
+    }
     const size = this.state.size;
     const rect = this.el.boardGrid.getBoundingClientRect();
     const x = Math.floor(((clientX - rect.left) / rect.width) * size);
@@ -658,16 +689,23 @@ class CollatzGameApp {
     this.selectedCell = { x, y };
     this.clearPreviewHighlights();
     this.cellEls[x][y].classList.add('selected');
-
-    const pctX = Math.max(16, Math.min(84, ((x + 0.5) / size) * 100));
-    const pctY = Math.max(16, Math.min(84, ((y + 0.5) / size) * 100));
-    this.el.dirWheel.style.left = `${pctX}%`;
-    this.el.dirWheel.style.top = `${pctY}%`;
+    if (this.fpvActive) {
+      this.fpv.setSelectedCell({ x, y });
+      const { pctX, pctY } = this.fpv.projectCellToScreenPercent(x, y);
+      this.el.dirWheel.style.left = `${pctX}%`;
+      this.el.dirWheel.style.top = `${pctY}%`;
+    } else {
+      const pctX = Math.max(16, Math.min(84, ((x + 0.5) / size) * 100));
+      const pctY = Math.max(16, Math.min(84, ((y + 0.5) / size) * 100));
+      this.el.dirWheel.style.left = `${pctX}%`;
+      this.el.dirWheel.style.top = `${pctY}%`;
+    }
     this.el.dirWheel.classList.remove('hidden');
   }
 
   clearPreviewHighlights() {
     this.fx.clearPreview();
+    if (this.fpvActive) this.fpv.clearPreview();
     this.el.telemetry.classList.remove('visible');
     const size = this.cellEls.length;
     for (let x = 0; x < size; x++) {
@@ -679,6 +717,7 @@ class CollatzGameApp {
 
   clearSelection() {
     this.selectedCell = null;
+    if (this.fpvActive) this.fpv.setSelectedCell(null);
     this.el.dirWheel.classList.add('hidden');
     this.clearPreviewHighlights();
     const size = this.cellEls.length;
@@ -712,6 +751,17 @@ class CollatzGameApp {
       dy: dir.dy,
       hopSteps: prev.hopSteps,
     });
+    if (this.fpvActive) {
+      this.fpv.setPreview({
+        originX: x,
+        originY: y,
+        dx: dir.dx,
+        dy: dir.dy,
+        line: prev.line,
+        spawns: prev.spawns,
+        hopSteps: prev.hopSteps,
+      });
+    }
 
     // Silent icon-only telemetry (no prose sentences)
     const s = prev.summary;
@@ -904,11 +954,18 @@ class CollatzGameApp {
         }
       } else if (ev.type === 'hop_step') {
         const hopMs = Math.max(70, (narrate ? 175 : 140) / speedScale);
-        await this.fx.animateHopArc(ev.fromX, ev.fromY, ev.toX, ev.toY, ev.player, hopMs);
+        if (this.fpvActive) {
+          await this.fpv.animateHopRide(
+            ev.fromX, ev.fromY, ev.toX, ev.toY, ev.dx, ev.dy, ev.player, Math.max(150, hopMs * 1.25)
+          );
+        } else {
+          await this.fx.animateHopArc(ev.fromX, ev.fromY, ev.toX, ev.toY, ev.player, hopMs);
+        }
 
         if (ev.bounced) {
           this.sound.playBounce();
           this.fx.spawnWallSparks(ev.toX, ev.toY, ev.bouncedX, ev.bouncedY, colors.accent);
+          if (this.fpvActive) this.fpv.spawnBurst3D(ev.toX, ev.toY, colors.accent, 14);
           this.fx.shake(2.5, 85);
           if (narrate) this.fx.spawnCallout(ev.toX, ev.toY, 'bounce', colors.accent);
         }
@@ -923,6 +980,7 @@ class CollatzGameApp {
           this.sound.playLand();
           const col = ev.player === 1 ? colors.p1 : colors.p2;
           this.fx.spawnRing(ev.toX, ev.toY, col, 0.56);
+          if (this.fpvActive) this.fpv.spawnBurst3D(ev.toX, ev.toY, col, 12);
           if (narrate) {
             this.el.demoBody.textContent = `Landed on empty square (${ev.stepIndex + 1} hop${ev.stepIndex === 0 ? '' : 's'}).`;
             await sleep(340 / speedScale);
@@ -932,6 +990,7 @@ class CollatzGameApp {
           this.sound.playHop(ev.stepIndex, isOppCapture);
           const eatenCol = ev.eaten === 1 ? colors.p1 : colors.p2;
           this.fx.spawnBurst(ev.toX, ev.toY, eatenCol, isOppCapture ? 14 : 8, isOppCapture ? 3.2 : 2.1);
+          if (this.fpvActive) this.fpv.spawnBurst3D(ev.toX, ev.toY, eatenCol, isOppCapture ? 18 : 10);
           if (isOppCapture) {
             this.fx.spawnRing(ev.toX, ev.toY, colors.accent, 0.68);
             this.fx.shake(3.5, 95);
@@ -940,6 +999,9 @@ class CollatzGameApp {
         }
       } else if (ev.type === 'turn_end') {
         this.clearPreviewHighlights();
+        if (this.fpvActive) {
+          this.fpv.endHopRide(this.getFpvAnchorPlayer());
+        }
         if (narrate) {
           this.fx.clearBinaryOverlay();
         }
@@ -968,6 +1030,9 @@ class CollatzGameApp {
     const size = board.length;
     if (this.cellEls.length !== size) {
       this.buildBoardDOM(size);
+    }
+    if (this.fpv) {
+      this.fpv.setBoard(board, size, this.getFpvAnchorPlayer());
     }
     const popSet = new Set(popKeys);
     const activePlayer = this.state.currentPlayer;

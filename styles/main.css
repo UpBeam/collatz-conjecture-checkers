@@ -412,6 +412,20 @@ body {
   z-index: 10;
 }
 
+.fpv-canvas {
+  position: absolute;
+  inset: 8px;
+  width: calc(100% - 16px);
+  height: calc(100% - 16px);
+  border-radius: calc(var(--r-outer) - 8px);
+  z-index: 14;
+  cursor: pointer;
+}
+
+.fpv-canvas.hidden {
+  display: none;
+}
+
 /* ---------------- Radial 8-Direction Wheel ---------------- */
 .dir-wheel {
   position: absolute;
